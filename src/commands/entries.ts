@@ -1,6 +1,6 @@
 import { ApiClient, DEFAULT_BASE_URL, type EntriesPage } from "../api/client.js";
 import { resolveToken, resolveBaseUrl } from "../auth/credentials.js";
-import { printRows, type OutputFormat } from "./output.js";
+import { printRows, withPresentColumns, type OutputFormat } from "./output.js";
 
 export interface EntriesListOptions {
   profile: string;
@@ -34,6 +34,12 @@ const COLUMNS = [
   "on_blocks",
   "is_deleted"
 ];
+
+/** Columns the facade sends only from the attachments release on; shown when present. `files` is `attachment_count`. */
+function withFileColumns(rows: Record<string, unknown>[]): { rows: Record<string, unknown>[]; columns: string[] } {
+  const shaped = rows.map((r) => (r.attachment_count !== undefined ? { ...r, files: r.attachment_count } : r));
+  return { rows: shaped, columns: withPresentColumns(shaped, COLUMNS, ["signature", "files"]) };
+}
 
 export async function requireClient(profile: string, baseUrlOverride?: string): Promise<ApiClient> {
   const token = await resolveToken(profile);
@@ -91,5 +97,10 @@ export async function entriesList(opts: EntriesListOptions): Promise<void> {
     ? await fetchAllEntries(client, opts)
     : (await client.get<EntriesPage>("/api/cli/v1/entries", entriesQuery(opts))).entries;
 
-  printRows(rows, COLUMNS, opts.format);
+  if (opts.format === "json") {
+    printRows(rows, COLUMNS, opts.format);
+    return;
+  }
+  const shaped = withFileColumns(rows);
+  printRows(shaped.rows, shaped.columns, opts.format);
 }

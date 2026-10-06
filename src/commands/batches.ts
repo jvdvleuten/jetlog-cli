@@ -28,7 +28,17 @@ function printPreview(preview: CleanupPreview): void {
   console.error(`edited, untouched:    ${preview.edited_entries_untouched} entries this import only EDITED (never deleted)`);
   console.error(`people:               ${preview.people_would_delete} orphaned person(s) would also be removed`);
   if (preview.signed_kept > 0) {
-    console.error(`kept (signed):        ${preview.signed_kept} entr${preview.signed_kept === 1 ? "y" : "ies"} kept (a signed entry is never deleted)`);
+    console.error(`kept (signed):        ${preview.signed_kept} entr${preview.signed_kept === 1 ? "y" : "ies"} kept (an entry signed in the app is never deleted)`);
+  }
+  const tokenSigned = preview.token_signed_would_delete ?? 0;
+  if (tokenSigned > 0) {
+    console.error(`signed by a token:    ${tokenSigned} entr${tokenSigned === 1 ? "y carries a signature" : "ies carry signatures"} a token attached and are deleted with the batch`);
+  }
+  const linkSigned = preview.link_signed_kept ?? 0;
+  if (linkSigned > 0) {
+    console.error(
+      `kept (link-signed):   ${linkSigned} entr${linkSigned === 1 ? "y" : "ies"} signed through a signing link a token created (add --include-link-signed to delete ${linkSigned === 1 ? "it" : "them"} too)`
+    );
   }
 }
 
@@ -40,12 +50,18 @@ function printResult(result: CleanupResult): void {
   }
 }
 
-export async function batchesRemove(opts: { profile: string; baseUrl?: string; id: string; yes?: boolean }): Promise<void> {
+export async function batchesRemove(opts: {
+  profile: string;
+  baseUrl?: string;
+  id: string;
+  yes?: boolean;
+  includeLinkSigned?: boolean;
+}): Promise<void> {
   const client = await requireClient(opts.profile, opts.baseUrl);
-  const preview = (await deleteImportBatch(client, opts.id, true)) as CleanupPreview;
+  const preview = (await deleteImportBatch(client, opts.id, true, opts.includeLinkSigned)) as CleanupPreview;
   printPreview(preview);
 
-  if (preview.would_delete === 0) {
+  if (preview.would_delete === 0 && (preview.token_signed_would_delete ?? 0) === 0) {
     console.error("nothing to remove.");
     return;
   }
@@ -58,16 +74,21 @@ export async function batchesRemove(opts: { profile: string; baseUrl?: string; i
     }
   }
 
-  const result = (await deleteImportBatch(client, opts.id, false)) as CleanupResult;
+  const result = (await deleteImportBatch(client, opts.id, false, opts.includeLinkSigned)) as CleanupResult;
   printResult(result);
 }
 
-export async function batchesRemoveAllCli(opts: { profile: string; baseUrl?: string; yes?: boolean }): Promise<void> {
+export async function batchesRemoveAllCli(opts: {
+  profile: string;
+  baseUrl?: string;
+  yes?: boolean;
+  includeLinkSigned?: boolean;
+}): Promise<void> {
   const client = await requireClient(opts.profile, opts.baseUrl);
-  const preview = (await cleanupImportBatches(client, ["cli"], true)) as CleanupPreview;
+  const preview = (await cleanupImportBatches(client, ["cli"], true, opts.includeLinkSigned)) as CleanupPreview;
   printPreview(preview);
 
-  if (preview.would_delete === 0) {
+  if (preview.would_delete === 0 && (preview.token_signed_would_delete ?? 0) === 0) {
     console.error("nothing to remove.");
     return;
   }
@@ -80,6 +101,6 @@ export async function batchesRemoveAllCli(opts: { profile: string; baseUrl?: str
     }
   }
 
-  const result = (await cleanupImportBatches(client, ["cli"], false)) as CleanupResult;
+  const result = (await cleanupImportBatches(client, ["cli"], false, opts.includeLinkSigned)) as CleanupResult;
   printResult(result);
 }

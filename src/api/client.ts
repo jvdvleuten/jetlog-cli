@@ -51,6 +51,10 @@ export interface ApiClientOptions {
 
 export interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
+  /** Which statuses are retried (default: 429 and every 5xx). Confirming an upload retries 503 only. */
+  retryOn?: (status: number) => boolean;
+  /** Retry after a network error (default true). Off for a POST whose lost response must not be repeated. */
+  retryNetworkErrors?: boolean;
   query?: Record<string, string | number | boolean | undefined>;
   body?: unknown;
   /** Skip the Authorization header (device-flow endpoints are unauthenticated). */
@@ -63,13 +67,122 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function messageForStatus(status: number, code: string | undefined, bodyError: string | undefined): string {
+/**
+ * Longest `retry-after` the client sleeps for. Above this it fails at once, so an hourly limit never parks a command.
+ * 60 s is the largest fixed window of the per-minute buckets, which answer with 1 to 60 s and must keep being waited out.
+ */
+const MAX_RETRY_AFTER_SECONDS = 60;
+
+/** 429 codes that mean "not now", so retrying only burns time and budget. */
+const NEVER_RETRIED_CODES = new Set(["attachment_quota_exceeded", "signature_budget_exceeded", "too_many_open_links"]);
+
+const defaultRetryOn = (status: number): boolean => status === 429 || status >= 500;
+
+/** Plain-words messages for the attachment write codes, which carry no useful text of their own. */
+const CODE_MESSAGES: Record<string, string> = {
+  attachment_quota_exceeded: "your attachment storage quota for now is used up. Try again later, or remove files you no longer need.",
+  too_many_pending_uploads: "too many uploads are still waiting to be confirmed. Wait a moment and try again.",
+  entry_attachment_cap: "an entry can hold at most 20 files.",
+  immutable_reference: "a file row cannot be pointed at another entry or file. Remove it and add the file again.",
+  invalid_attachment_reference: "the uploaded file is not usable as an attachment. Try the upload again.",
+  invalid_photo_reference: "the uploaded image is not usable as a photo. Try the upload again.",
+  not_uploaded: "the upload did not reach storage. Try again.",
+  invalid_content: "the server rejected the file's content. Check that it is a valid file of an accepted type.",
+  unknown_entry_ids: "that entry does not exist in your logbook.",
+  invalid_target: "that entry or person does not exist in your logbook.",
+  signature_not_applied:
+    "the signature change did not land, because the entry was changed more recently from another device. Nothing was written. Try again.",
+  signature_budget_exceeded: "the hourly limit for signature actions is used up. Try again later.",
+  too_many_open_links: "you already have 5 open signing links. Revoke one with `jetlog signatures revoke <request-id>` or wait until one expires."
+};
+
+/** Plain words for the `reason` of one `signature_rejected` error row. */
+const SIGNATURE_REASON_MESSAGES: Record<string, string> = {
+  inline_signature_not_supported: "inline signatures are not supported, attach a PNG image instead.",
+  signature_removal_not_allowed: "a signature cannot be removed by a token.",
+  invalid_signature_reference: "the uploaded image is not usable as a signature. Try the upload again.",
+  entry_not_signable: "this entry cannot be signed (it is a bulk entry, deleted or unknown).",
+  already_signed: "this entry is already signed, and a token cannot replace a signature.",
+  signature_origin_not_allowed:
+    "this image was captured in the app or through a signing link, so a token cannot reuse it. Upload the image from a file instead.",
+  signature_conflict: "a signature and a waiver cannot be set in the same change.",
+  signature_writes_not_enabled: "signature changes by AI clients are switched off on the server for now."
+};
+
+const SAFE_ID = /^[\w-]{1,64}$/;
+
+/** The object that carries extension members of an error body: the body itself, or its `error` object. */
+function errorBodies(body: Record<string, unknown> | undefined): Record<string, unknown>[] {
+  if (!body) return [];
+  const inner = body.error;
+  return inner && typeof inner === "object" ? [body, inner as Record<string, unknown>] : [body];
+}
+
+function firstArray(body: Record<string, unknown> | undefined, keys: string[]): unknown[] {
+  for (const source of errorBodies(body)) {
+    for (const key of keys) {
+      const value = source[key];
+      if (Array.isArray(value)) return value;
+    }
+  }
+  return [];
+}
+
+function safeIds(values: unknown[]): string[] {
+  return values.filter((v): v is string => typeof v === "string" && SAFE_ID.test(v));
+}
+
+/** Messages that need the error body: the per-entry reasons and ids of the signature errors. */
+function messageForBodyCode(code: string, body: Record<string, unknown> | undefined): string | undefined {
+  if (code === "signature_rejected") {
+    const rows = firstArray(body, ["errors"]).filter((r): r is Record<string, unknown> => Boolean(r) && typeof r === "object");
+    const lines = rows.map((row) => {
+      const reason = typeof row.reason === "string" ? row.reason : "";
+      const text = SIGNATURE_REASON_MESSAGES[reason] ?? (/^[a-z_]{1,64}$/.test(reason) ? `the signature was rejected (${reason}).` : "the signature was rejected.");
+      const id = typeof row.id === "string" && SAFE_ID.test(row.id) ? row.id : undefined;
+      return rows.length > 1 && id ? `entry ${id}: ${text}` : text;
+    });
+    return lines.length > 0 ? [...new Set(lines)].join(" ") : "the signature was rejected.";
+  }
+  if (code === "entries_not_signable") {
+    const ids = safeIds(firstArray(body, ["ids", "entry_ids", "entries"]));
+    return `these entries cannot be signed here, because they are bulk, deleted or already signed${ids.length > 0 ? `: ${ids.join(", ")}` : ""}.`;
+  }
+  if (code === "signature_not_applied") {
+    const ids = safeIds(firstArray(body, ["ids", "entry_ids", "entries"]));
+    const base = CODE_MESSAGES.signature_not_applied!;
+    return ids.length > 0 ? `${base} Entries: ${ids.join(", ")}.` : base;
+  }
+  return undefined;
+}
+
+function waitText(seconds: number): string {
+  if (seconds <= 90) return `${seconds} second${seconds === 1 ? "" : "s"}`;
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+}
+
+function messageForStatus(
+  status: number,
+  code: string | undefined,
+  bodyError: string | undefined,
+  retryAfter?: number,
+  body?: Record<string, unknown>
+): string {
+  if (code) {
+    const fromBody = messageForBodyCode(code, body);
+    if (fromBody) return fromBody;
+    if (code === "signature_budget_exceeded" && retryAfter !== undefined) {
+      return `the hourly limit for signature actions is used up. Try again in ${waitText(retryAfter)}.`;
+    }
+    if (CODE_MESSAGES[code]) return CODE_MESSAGES[code]!;
+  }
   switch (status) {
     case 401:
       return "not logged in, or your token is invalid/expired. Run `jetlog login`.";
     case 403:
       if (code === "insufficient_scope") {
-        return "your token doesn't have the scope needed for this (try `jetlog login --scope write` if you need write access).";
+        return "your token is missing a scope needed for this. Run `jetlog login` again to grant it (add `--scope write` if you need to change things).";
       }
       if (code === "route_not_available_to_token") {
         return "this operation isn't available to a personal access token.";
@@ -78,12 +191,47 @@ function messageForStatus(status: number, code: string | undefined, bodyError: s
     case 404:
       return "not found.";
     case 429:
+      if (retryAfter !== undefined && retryAfter > MAX_RETRY_AFTER_SECONDS) {
+        return `rate limited, try again in ${waitText(retryAfter)}.`;
+      }
       return "rate limited, try again later.";
     default:
       if (status >= 500) return "Jetlog server error, try again later.";
       return bodyError ?? code ?? `HTTP ${status}`;
   }
 }
+
+/**
+ * How long to sleep before retrying `response`, or undefined when it must not be retried:
+ * out of attempts, a status the caller does not retry, a `retry-after` above the cap (any
+ * status, so a maintenance page cannot park a command), or a 429 that carries one of the
+ * "not now" codes.
+ */
+async function retryDelayMs(
+  response: Response,
+  attempt: number,
+  maxRetries: number,
+  retryOn: (status: number) => boolean
+): Promise<number | undefined> {
+  if (attempt >= maxRetries || !retryOn(response.status)) return undefined;
+  const header = response.headers.get("retry-after");
+  const seconds = header ? Number.parseInt(header, 10) : Number.NaN;
+  if (Number.isFinite(seconds) && seconds > MAX_RETRY_AFTER_SECONDS) return undefined;
+  if (response.status === 429) {
+    const body = (await response.clone().json().catch(() => ({}))) as Record<string, unknown>;
+    const code = extractErrorCode(body);
+    if (code && NEVER_RETRIED_CODES.has(code)) return undefined;
+  }
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : backoffMs(attempt);
+}
+
+function parseRetryAfter(response: Response): number | undefined {
+  const seconds = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+}
+
+/** Shown when a token without the `files` scope reads an entry or person: the server then leaves the file keys out. */
+export const FILES_SCOPE_MESSAGE = "your token is missing the files scope. Run `jetlog login` again to grant it.";
 
 export class ApiClient {
   readonly baseUrl: string;
@@ -106,7 +254,10 @@ export class ApiClient {
    * `ApiError` discarding it. Still retries 429/5xx the same way
    * `request()` does. `request()` is built on top of this.
    */
-  async requestRaw<T = unknown>(path: string, opts: RequestOptions = {}): Promise<{ status: number; body: T }> {
+  async requestRaw<T = unknown>(
+    path: string,
+    opts: RequestOptions = {}
+  ): Promise<{ status: number; body: T; retryAfter?: number }> {
     const method = opts.method ?? "GET";
     const url = new URL(path, this.baseUrl + "/");
     if (opts.query) {
@@ -134,7 +285,7 @@ export class ApiClient {
           body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
         });
       } catch (err) {
-        if (attempt < this.maxRetries) {
+        if (attempt < this.maxRetries && opts.retryNetworkErrors !== false) {
           await sleep(backoffMs(attempt));
           attempt++;
           continue;
@@ -142,24 +293,21 @@ export class ApiClient {
         throw new ApiError(`network error: ${(err as Error).message}`, 0);
       }
 
-      if (response.status === 429 || response.status >= 500) {
-        if (attempt < this.maxRetries) {
-          const retryAfterHeader = response.headers.get("retry-after");
-          const retryAfterMs = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) * 1000 : backoffMs(attempt);
-          await sleep(Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : backoffMs(attempt));
-          attempt++;
-          continue;
-        }
+      const delay = await retryDelayMs(response, attempt, this.maxRetries, opts.retryOn ?? defaultRetryOn);
+      if (delay !== undefined) {
+        await sleep(delay);
+        attempt++;
+        continue;
       }
 
       if (response.status === 204) return { status: 204, body: undefined as T };
       const body = (await response.json().catch(() => ({}))) as T;
-      return { status: response.status, body };
+      return { status: response.status, body, retryAfter: parseRetryAfter(response) };
     }
   }
 
   async request<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
-    const { status, body } = await this.requestRaw<Record<string, unknown>>(path, opts);
+    const { status, body, retryAfter } = await this.requestRaw<Record<string, unknown>>(path, opts);
 
     if (status >= 200 && status < 300) {
       return (status === 204 ? undefined : body) as T;
@@ -180,7 +328,7 @@ export class ApiClient {
         ? ((errorField as Record<string, unknown>).message as string)
         : undefined;
     const description = typeof body.error_description === "string" ? body.error_description : undefined;
-    throw new ApiError(messageForStatus(status, code, bodyMessage ?? code), status, code, undefined, {
+    throw new ApiError(messageForStatus(status, code, bodyMessage ?? code, retryAfter, body), status, code, retryAfter, {
       description,
       body
     });
@@ -237,14 +385,11 @@ export class ApiClient {
         throw new ApiError(`network error: ${(err as Error).message}`, 0);
       }
 
-      if (response.status === 429 || response.status >= 500) {
-        if (attempt < this.maxRetries) {
-          const retryAfterHeader = response.headers.get("retry-after");
-          const retryAfterMs = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) * 1000 : backoffMs(attempt);
-          await sleep(Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : backoffMs(attempt));
-          attempt++;
-          continue;
-        }
+      const delay = await retryDelayMs(response, attempt, this.maxRetries, defaultRetryOn);
+      if (delay !== undefined) {
+        await sleep(delay);
+        attempt++;
+        continue;
       }
 
       if (response.status === 304) return { status: 304 };
@@ -252,7 +397,8 @@ export class ApiClient {
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
         const code = typeof body.error === "string" ? body.error : undefined;
-        throw new ApiError(messageForStatus(response.status, code, code), response.status, code);
+        const retryAfter = parseRetryAfter(response);
+        throw new ApiError(messageForStatus(response.status, code, code, retryAfter), response.status, code, retryAfter);
       }
 
       const etag = response.headers.get("etag") ?? undefined;
@@ -365,6 +511,10 @@ export interface CleanupPreview {
   edited_entries_untouched: number;
   people_would_delete: number;
   signed_kept: number;
+  /** Entries a token signed (no app or link signature): deleted with the batch. */
+  token_signed_would_delete?: number;
+  /** Entries signed through a token-created signing link: kept unless `include_link_signed` is set. */
+  link_signed_kept?: number;
 }
 
 export type CleanupResult = { deleted: number; people_deleted?: number } | { status: "removing" };
@@ -375,6 +525,7 @@ export interface WriteResourcePage {
   people?: Record<string, unknown>[];
   aircraft?: Record<string, unknown>[];
   fstd?: Record<string, unknown>[];
+  entry_attachments?: Record<string, unknown>[];
 }
 
 /**
@@ -393,18 +544,29 @@ export function listImportBatches(client: ApiClient): Promise<ImportBatchesRespo
   return client.get<ImportBatchesResponse>("/api/import_batches");
 }
 
-export function deleteImportBatch(client: ApiClient, id: string, dryRun: boolean): Promise<CleanupPreview | CleanupResult> {
+export function deleteImportBatch(
+  client: ApiClient,
+  id: string,
+  dryRun: boolean,
+  includeLinkSigned = false
+): Promise<CleanupPreview | CleanupResult> {
   return client.delete<CleanupPreview | CleanupResult>(`/api/import_batches/${encodeURIComponent(id)}`, {
-    dry_run: dryRun || undefined
+    dry_run: dryRun || undefined,
+    include_link_signed: includeLinkSigned || undefined
   });
 }
 
 export function cleanupImportBatches(
   client: ApiClient,
   sources: ("cli" | "mcp")[],
-  dryRun: boolean
+  dryRun: boolean,
+  includeLinkSigned = false
 ): Promise<CleanupPreview | CleanupResult> {
-  return client.post<CleanupPreview | CleanupResult>("/api/import_batches/cleanup", { sources, dry_run: dryRun });
+  return client.post<CleanupPreview | CleanupResult>("/api/import_batches/cleanup", {
+    sources,
+    dry_run: dryRun,
+    ...(includeLinkSigned ? { include_link_signed: true } : {})
+  });
 }
 
 /** Max rows per `PUT /api/entries|people|aircraft|fstd` request (server-enforced, 413 above this). */
@@ -423,7 +585,7 @@ function chunk<T>(items: T[], size: number): T[][] {
  */
 export async function putResourceChunked(
   client: ApiClient,
-  resource: "entries" | "people" | "aircraft" | "fstd",
+  resource: "entries" | "people" | "aircraft" | "fstd" | "entry_attachments",
   rows: Record<string, unknown>[],
   batchId: string
 ): Promise<Record<string, unknown>[]> {
@@ -467,7 +629,7 @@ export interface AirlinesResponse {
 
 export interface PendingChangeOperationInput {
   op: "create" | "update" | "delete";
-  resource: "entry" | "person" | "aircraft" | "fstd";
+  resource: "entry" | "person" | "aircraft" | "fstd" | "entry_attachment" | "signature_link";
   /** Required for update/delete; omit (or leave undefined) for create. */
   id?: string;
   data?: Record<string, unknown>;
@@ -538,12 +700,24 @@ function extractErrorMessage(status: number, body: Record<string, unknown> | und
       ? ((errorField as Record<string, unknown>).message as string)
       : undefined;
   const code = extractErrorCode(body);
-  return messageForStatus(status, code, bodyMessage ?? code);
+  return messageForStatus(status, code, bodyMessage ?? code, undefined, body);
+}
+
+/** The scopes a 403 `insufficient_scope` names as missing (`files`, `signatures`), in a safe shape. */
+function extractMissingScopes(body: Record<string, unknown> | undefined): string[] | undefined {
+  for (const source of errorBodies(body)) {
+    const value = source.missing_scopes;
+    if (Array.isArray(value)) {
+      const scopes = value.filter((v): v is string => typeof v === "string" && /^[a-z_]{1,32}$/.test(v));
+      if (scopes.length > 0) return scopes;
+    }
+  }
+  return undefined;
 }
 
 export type ProposeChangesResult =
   | { ok: true; pendingChange: PendingChange }
-  | { ok: false; status: number; code?: string; errors?: PendingChangeFieldError[]; message: string };
+  | { ok: false; status: number; code?: string; errors?: PendingChangeFieldError[]; missingScopes?: string[]; message: string };
 
 /**
  * `POST /api/pending_changes`: validates `operations` and stores a
@@ -568,14 +742,32 @@ export async function proposeChanges(
     status,
     code: extractErrorCode(body),
     errors: extractFieldErrors(body),
+    missingScopes: extractMissingScopes(body),
     message: extractErrorMessage(status, body)
   };
 }
 
+/** A signing link minted by an applied `signature_link` operation. The URL is shown once, here. */
+export interface AppliedLink {
+  index?: number;
+  signature_request_id: string;
+  url: string;
+  expires_at: string;
+  entry_count?: number;
+}
+
 export type ApplyChangesResult =
-  | { ok: true; pendingChange: PendingChange }
+  | { ok: true; pendingChange: PendingChange; links: AppliedLink[] }
   | { ok: "stale"; pendingChange: PendingChange }
-  | { ok: false; status: number; code?: string; message: string };
+  | { ok: false; status: number; code?: string; missingScopes?: string[]; message: string };
+
+/**
+ * Added to an apply error that leaves the outcome open. Applying is not idempotent when the change holds a
+ * `signature_link`: the link URL exists only in the one response, so a lost response cannot be replayed.
+ */
+const APPLY_OUTCOME_UNKNOWN =
+  " The change may have been applied anyway, so check its status before proposing it again. If it contained a " +
+  "signing link, that link exists but its URL cannot be shown a second time: revoke it in the Jetlog app and propose again.";
 
 /**
  * `POST /api/pending_changes/:id/apply`: writes for real. MUST be called
@@ -588,18 +780,42 @@ export async function applyChanges(client: ApiClient, id: string, operationIndic
   const body: Record<string, unknown> = {};
   if (operationIndices) body.operation_indices = operationIndices;
 
-  const { status, body: respBody } = await client.requestRaw<Record<string, unknown>>(
-    `/api/pending_changes/${encodeURIComponent(id)}/apply`,
-    { method: "POST", body }
-  );
+  // Only a 429 is retried: a 5xx or a dropped connection may come after the commit, and a repeat would then
+  // answer 409 not_decidable while the signing link of the first run is lost.
+  let outcome: { status: number; body: Record<string, unknown> };
+  try {
+    outcome = await client.requestRaw<Record<string, unknown>>(`/api/pending_changes/${encodeURIComponent(id)}/apply`, {
+      method: "POST",
+      body,
+      retryOn: (s) => s === 429,
+      retryNetworkErrors: false
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 0) {
+      return { ok: false, status: 0, code: "network_error", message: `${err.message}.${APPLY_OUTCOME_UNKNOWN}` };
+    }
+    throw err;
+  }
+  const { status, body: respBody } = outcome;
 
   if (status === 200) {
-    return { ok: true, pendingChange: (respBody as { pending_change: PendingChange }).pending_change };
+    const pendingChange = (respBody as { pending_change: PendingChange }).pending_change;
+    // The contract names `links` on the apply result without pinning where it sits, so both places are read.
+    const links = (respBody.links ?? (pendingChange as { links?: unknown } | undefined)?.links) as AppliedLink[] | undefined;
+    return { ok: true, pendingChange, links: Array.isArray(links) ? links : [] };
   }
   if (status === 409 && respBody.error === "stale") {
     return { ok: "stale", pendingChange: (respBody as { pending_change: PendingChange }).pending_change };
   }
-  return { ok: false, status, code: extractErrorCode(respBody), message: extractErrorMessage(status, respBody) };
+  const code = extractErrorCode(respBody);
+  const unknownOutcome = status >= 500 || (status === 409 && code === "not_decidable");
+  return {
+    ok: false,
+    status,
+    code,
+    missingScopes: extractMissingScopes(respBody),
+    message: extractErrorMessage(status, respBody) + (unknownOutcome ? APPLY_OUTCOME_UNKNOWN : "")
+  };
 }
 
 /** `GET /api/pending_changes/:id`: the proposing token's own proposal (or any of the JWT user's, from the app). */
@@ -608,4 +824,222 @@ export async function getPendingChange(client: ApiClient, id: string): Promise<P
     `/api/pending_changes/${encodeURIComponent(id)}`
   );
   return pending_change;
+}
+
+// ---------------------------------------------------------------------
+// Attachments: entry files and person photos. Bytes go to storage through a presigned URL, never
+// through the Jetlog API, and the Authorization header never leaves for storage.
+// ---------------------------------------------------------------------
+
+export type AttachmentKind = "entry_file" | "person_photo" | "signature";
+
+/** `POST /api/attachments` upload target. `headers` must be sent exactly as given (they are signed). */
+export interface PresignedUpload {
+  url: string;
+  headers: Record<string, string>;
+  expires_at?: string;
+}
+
+export interface CreateAttachmentResponse {
+  id: string;
+  status: string;
+  /** Null when this exact content is already stored (dedupe), so nothing is uploaded. */
+  upload: PresignedUpload | null;
+}
+
+export function createAttachment(
+  client: ApiClient,
+  attrs: { kind: AttachmentKind; sha256: string; content_type: string; byte_size: number }
+): Promise<CreateAttachmentResponse> {
+  return client.post<CreateAttachmentResponse>("/api/attachments", attrs);
+}
+
+/** Confirms an upload. Retries 503 (storage briefly unreadable, the row stays pending), nothing else. */
+export function confirmAttachment(client: ApiClient, id: string): Promise<{ id: string; status: string }> {
+  return client.post<{ id: string; status: string }>(`/api/attachments/${encodeURIComponent(id)}/confirm`, undefined, {
+    retryOn: (status) => status === 503 || status === 429
+  });
+}
+
+export interface AttachmentDownloadUrl {
+  id: string;
+  sha256: string;
+  content_type: string;
+  url: string;
+  expires_at: string;
+}
+
+export interface AttachmentDownloadUrlsResponse {
+  attachments: AttachmentDownloadUrl[];
+  /** Ids with no row for this user. */
+  gone?: string[];
+  /** Ids a token may never download (signature images). */
+  forbidden?: string[];
+}
+
+export function attachmentDownloadUrls(client: ApiClient, ids: string[]): Promise<AttachmentDownloadUrlsResponse> {
+  return client.post<AttachmentDownloadUrlsResponse>("/api/attachments/download_urls", { ids });
+}
+
+/** PUTs `bytes` to a presigned URL with exactly the headers the server signed. No Authorization header, ever. */
+export async function putPresigned(upload: PresignedUpload, bytes: Uint8Array, fetchImpl: typeof fetch = fetch): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetchImpl(upload.url, { method: "PUT", headers: { ...upload.headers }, body: bytes });
+  } catch (err) {
+    throw new ApiError(`upload failed: ${(err as Error).message}`, 0, "upload_failed");
+  }
+  if (!response.ok) {
+    throw new ApiError(`upload to storage failed (HTTP ${response.status}).`, response.status, "upload_failed");
+  }
+}
+
+/** GETs bytes from a presigned URL. No Authorization header, ever. */
+export async function getPresigned(url: string, fetchImpl: typeof fetch = fetch): Promise<Buffer> {
+  let response: Response;
+  try {
+    response = await fetchImpl(url, { method: "GET" });
+  } catch (err) {
+    throw new ApiError(`download failed: ${(err as Error).message}`, 0, "download_failed");
+  }
+  if (!response.ok) {
+    throw new ApiError(`download from storage failed (HTTP ${response.status}).`, response.status, "download_failed");
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
+
+export interface EntryAttachmentRow {
+  id: string;
+  attachment_id: string;
+  file_name: string;
+  content_type?: string;
+  byte_size?: number;
+  position?: number;
+}
+
+/** `GET /api/cli/v1/entries/:id`: the facade entry plus signature and attachment state. */
+export type EntryDetail = Record<string, unknown> & {
+  id: string;
+  signature?: "none" | "waived" | "signed";
+  signature_attachment_id?: string | null;
+  signature_sha256?: string | null;
+  is_bulk?: boolean;
+  attachments?: EntryAttachmentRow[];
+};
+
+/** Accepts both `{entry: {...}}` and the bare entry, since the route's envelope is not pinned in the contract. */
+export async function getEntry(client: ApiClient, id: string): Promise<EntryDetail> {
+  const body = await client.get<Record<string, unknown>>(`/api/cli/v1/entries/${encodeURIComponent(id)}`);
+  const inner = body.entry;
+  return (inner && typeof inner === "object" ? inner : body) as EntryDetail;
+}
+
+/** `GET /api/entry_attachments` page: the app's sync rows for entry files. */
+export interface EntryAttachmentsPage {
+  entry_attachments: Record<string, unknown>[] | null;
+  sync_cursor?: number | null;
+}
+
+/** One page of the sync mirror of entry file rows (read scope). */
+export function listEntryAttachmentsPage(client: ApiClient, afterVersion: number, limit = 1000): Promise<EntryAttachmentsPage> {
+  return client.get<EntryAttachmentsPage>("/api/entry_attachments", { after_version: afterVersion, limit });
+}
+
+// ---------------------------------------------------------------------
+// Remote signing links. The URL is shown once, at creation.
+// ---------------------------------------------------------------------
+
+export interface SignatureRequest {
+  id: string;
+  url: string;
+  expires_at: string;
+}
+
+/**
+ * POSTs to a route that mints a bearer link. Not idempotent: every success creates a new link, so a 5xx is
+ * never retried (the link may exist already) and its message says where to look.
+ */
+async function postMintingLink(client: ApiClient, path: string, body: Record<string, unknown>, what: string, where: string): Promise<Record<string, unknown>> {
+  try {
+    return await client.post<Record<string, unknown>>(path, body, { retryOn: (status) => status === 429 });
+  } catch (err) {
+    if (err instanceof ApiError && err.status >= 500) {
+      throw new ApiError(
+        `${err.message} The ${what} may have been created anyway, so check the open ${what}s in ${where} before trying again.`,
+        err.status,
+        err.code,
+        err.retryAfter,
+        { description: err.description, body: err.body }
+      );
+    }
+    throw err;
+  }
+}
+
+/** `POST /api/signature_requests`. Accepts `{signature_request: {...}}` and the bare object. */
+export async function createSignatureRequest(client: ApiClient, entryIds: string[]): Promise<SignatureRequest> {
+  const body = await postMintingLink(client, "/api/signature_requests", { entry_ids: entryIds }, "signing link", "the Jetlog app");
+  const inner = body.signature_request;
+  return (inner && typeof inner === "object" ? inner : body) as unknown as SignatureRequest;
+}
+
+/** `DELETE /api/signature_requests/:id`: a token may revoke only requests its own login created. */
+export function revokeSignatureRequest(client: ApiClient, id: string): Promise<unknown> {
+  return client.delete(`/api/signature_requests/${encodeURIComponent(id)}`);
+}
+
+// ---------------------------------------------------------------------
+// Upload links: a short-lived page where the pilot adds files or a
+// photo from another device. Creating one changes nothing in the logbook; the files land as applied changes.
+// ---------------------------------------------------------------------
+
+export type UploadLinkPurpose = "entry_files" | "person_photo" | "entry_signature";
+
+export interface UploadLink {
+  id: string;
+  url: string;
+  purpose: UploadLinkPurpose;
+  entry_id?: string | null;
+  person_id?: string | null;
+  target_label?: string;
+  max_files?: number;
+  max_bytes_per_file?: number;
+  accepted_types?: string[];
+  requires_owner_verification?: boolean;
+  expires_at: string;
+}
+
+export interface UploadLinkStatus {
+  status: "open" | "closed" | "expired" | "revoked";
+  files_landed: number;
+  files?: { file_name?: string; content_type?: string; byte_size?: number; attachment_id?: string }[];
+  expires_at?: string;
+}
+
+const UPLOAD_LINK_CAP_MESSAGE = "you already have 5 open upload links. They expire after 30 minutes, or revoke one in the Jetlog app.";
+
+/** `POST /api/upload_links` (write and files scope). Accepts `{upload_link: {...}}` and the bare object. */
+export async function createUploadLink(
+  client: ApiClient,
+  target: { purpose: UploadLinkPurpose; entry_id?: string; person_id?: string }
+): Promise<UploadLink> {
+  let body: Record<string, unknown>;
+  try {
+    body = await postMintingLink(client, "/api/upload_links", target, "upload link", "the Jetlog app");
+  } catch (err) {
+    // The same code as the signing link cap, but a different list and no CLI command to revoke from.
+    if (err instanceof ApiError && err.code === "too_many_open_links") {
+      throw new ApiError(UPLOAD_LINK_CAP_MESSAGE, err.status, err.code, err.retryAfter, { description: err.description, body: err.body });
+    }
+    throw err;
+  }
+  const inner = body.upload_link;
+  return (inner && typeof inner === "object" ? inner : body) as unknown as UploadLink;
+}
+
+/** `GET /api/upload_links/:id`: scoped to the login that created the link, 404 for any other. */
+export async function getUploadLink(client: ApiClient, id: string): Promise<UploadLinkStatus> {
+  const body = await client.get<Record<string, unknown>>(`/api/upload_links/${encodeURIComponent(id)}`);
+  const inner = body.upload_link;
+  return (inner && typeof inner === "object" ? inner : body) as unknown as UploadLinkStatus;
 }

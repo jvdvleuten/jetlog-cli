@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { login, renderQr, shouldPrintQr, type LoginIo } from "../../src/commands/login.js";
+import { login, loginScopes, renderQr, shouldPrintQr, type LoginIo } from "../../src/commands/login.js";
 import { getProfile } from "../../src/auth/credentials.js";
 import { TestServer, jsonHandler } from "../helpers/test-server.js";
 
@@ -98,6 +98,23 @@ describe("login command", () => {
     expect(opened).toEqual([]);
     const profile = await getProfile("default");
     expect(profile?.token).toBe("jlp_minted");
+  });
+
+  it("asks for the files and signatures scopes next to read and write", async () => {
+    expect(loginScopes("read")).toBe("read files");
+    expect(loginScopes("write")).toBe("read write files signatures");
+
+    for (const [scope, expected] of [["read", "read files"], ["write", "read write files signatures"]] as const) {
+      const server = new TestServer([...success]);
+      await server.start();
+      try {
+        await login({ profile: "default", scope, baseUrl: server.baseUrl }, makeIo().io);
+        expect(server.requests[0]!.path).toBe("/oauth/device_authorization");
+        expect(server.requests[0]!.body).toMatchObject({ scope: expected });
+      } finally {
+        await server.stop();
+      }
+    }
   });
 
   it("skips the QR (but still prints number, code and URL) when stdout is not a TTY", async () => {

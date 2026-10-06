@@ -14,7 +14,8 @@ export const CLIENT_ID = "jetlog-cli";
 
 export interface StartDeviceFlowOptions {
   client: ApiClient;
-  scope: "read" | "read write";
+  /** Space separated scopes, e.g. `read files` or `read write files signatures`. */
+  scope: string;
   clientName?: string;
 }
 

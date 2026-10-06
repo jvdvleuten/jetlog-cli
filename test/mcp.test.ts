@@ -47,14 +47,19 @@ describe("MCP server", () => {
         "apply_changes",
         "compute_totals",
         "convert_file",
+        "create_upload_link",
+        "download_attachment",
         "get_change_status",
         "get_import_schema",
+        "get_upload_link_status",
         "import_preview",
         "list_aircraft",
+        "list_entry_attachments",
         "list_people",
         "make_import_links",
         "propose_changes",
         "search_entries",
+        "upload_file",
         "validate_payload",
         "whoami"
       ].sort()
@@ -260,6 +265,16 @@ describe("MCP server", () => {
       ["list_people", {}],
       ["list_aircraft", {}]
     ];
+    // The file tools sit behind the same access gates, plus the files scope (test/mcp-files.test.ts).
+    const fileWriteCalls: [string, Record<string, unknown>][] = [
+      ["upload_file", { path: "/tmp/ramp.png", kind: "entry_file" }],
+      ["create_upload_link", { purpose: "entry_files", entry_id: "e-1" }]
+    ];
+    const fileReadCalls: [string, Record<string, unknown>][] = [
+      ["list_entry_attachments", { entry_id: "e-1" }],
+      ["download_attachment", { attachment_id: "a-1" }],
+      ["get_upload_link_status", { upload_link_id: "ul-1" }]
+    ];
     const originalProfile = process.env.JETLOG_PROFILE;
     afterEach(() => {
       if (originalProfile === undefined) delete process.env.JETLOG_PROFILE;
@@ -270,7 +285,7 @@ describe("MCP server", () => {
       const { client } = await connectedClient();
       const names = (await client.listTools()).tools.map((t) => t.name);
       expect(names).toEqual(expect.arrayContaining(["propose_changes", "apply_changes", "get_change_status", "whoami"]));
-      for (const [name, args] of [...writeCalls, ...readCalls]) {
+      for (const [name, args] of [...writeCalls, ...readCalls, ...fileWriteCalls, ...fileReadCalls]) {
         const result = await client.callTool({ name, arguments: args });
         expect(result.isError, name).toBe(true);
         expect(text(result), name).toContain("not logged in");
@@ -315,7 +330,7 @@ describe("MCP server", () => {
     it("write tools return a read-only error for a read-only profile, reads still work", async () => {
       await saveProfile("default", { token: "jlp_abc", scope: "read" });
       const { client } = await connectedClient();
-      for (const [name, args] of writeCalls) {
+      for (const [name, args] of [...writeCalls, ...fileWriteCalls]) {
         const result = await client.callTool({ name, arguments: args });
         expect(result.isError, name).toBe(true);
         expect(text(result), name).toContain("read-only");

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -102,6 +102,32 @@ describe("changes commands", () => {
       await changesApply({ profile: "default", id: "pc-1", yes: true, operationIndices: [0] });
       expect(server.requests[1]!.body).toEqual({ operation_indices: [0] });
     } finally {
+      await server.stop();
+    }
+  });
+
+  it("apply prints the signing links of the change once, URL on stdout and details on stderr", async () => {
+    const out: string[] = [];
+    const err: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...a: unknown[]) => void out.push(a.join(" ")));
+    vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => void err.push(a.join(" ")));
+    const applied = { ...samplePendingChange, status: "applied", applied_batch_id: "batch-1" };
+    const links = [{ index: 0, signature_request_id: "sr-1", url: "https://jetlog.app/sign/tok\u001b[31m", expires_at: "2026-10-08T00:00:00Z", entry_count: 2 }];
+    const server = new TestServer([jsonHandler(200, { pending_change: samplePendingChange }), jsonHandler(200, { pending_change: { ...applied, links } })]);
+    await server.start();
+    await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+    try {
+      await changesApply({ profile: "default", id: "pc-1", yes: true });
+      expect(out).toHaveLength(1);
+      expect(out[0]).toContain("https://jetlog.app/sign/tok");
+      expect(out[0]).not.toContain("\u001b");
+      const text = err.join("\n");
+      expect(text).toContain("applied:");
+      expect(text).toContain("sr-1");
+      expect(text).toContain("2 entries");
+      expect(text).toContain("jetlog signatures revoke sr-1");
+    } finally {
+      vi.restoreAllMocks();
       await server.stop();
     }
   });

@@ -9,6 +9,7 @@
 import { createInterface } from "node:readline/promises";
 import { applyChanges, getPendingChange, type PendingChange, type PendingChangePreviewEntry } from "../api/client.js";
 import { requireClient } from "./entries.js";
+import { sanitizeForTerminal } from "./output.js";
 
 async function confirm(message: string): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
@@ -95,4 +96,15 @@ export async function changesApply(opts: {
     `applied: ${result.pendingChange.counts.creates} create(s), ${result.pendingChange.counts.updates} update(s), ` +
       `${result.pendingChange.counts.deletes} delete(s). batch: ${result.pendingChange.applied_batch_id}`
   );
+
+  // The server shows a signing link URL in this one response only, so it is printed here or lost.
+  for (const link of result.links) {
+    console.log(sanitizeForTerminal(link.url));
+    const id = sanitizeForTerminal(link.signature_request_id);
+    console.error(
+      `Signing link ${id}, expires ${sanitizeForTerminal(link.expires_at)}` +
+        `${link.entry_count !== undefined ? `, ${link.entry_count} ${link.entry_count === 1 ? "entry" : "entries"}` : ""}. ` +
+        `Anyone who has it can sign those entries until then. Revoke with: jetlog signatures revoke ${id}`
+    );
+  }
 }

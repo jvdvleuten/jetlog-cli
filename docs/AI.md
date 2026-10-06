@@ -41,11 +41,13 @@ The conversion tools work without an account. To let the assistant read your
 logbook, log in once in a terminal:
 
 ```sh
-jetlog login                  # read only
-jetlog login --scope write    # also allow edits that you confirm
+jetlog login                  # read only, plus downloading files
+jetlog login --scope write    # also allow edits that you confirm, plus files and signatures
 ```
 
-Then restart or reconnect the MCP server. If you logged in with
+A login made with an older version of the tool lacks the `files` and
+`signatures` scopes, so log in again to use the file tools below. Then restart
+or reconnect the MCP server. If you logged in with
 `--profile <name>`, set `JETLOG_PROFILE=<name>` in the server's environment.
 
 The assistant never sees your token. Without a login the logbook tools return
@@ -77,9 +79,23 @@ Edit your logbook, needs a login with `--scope write`:
 
 | Tool | What it does |
 | --- | --- |
-| `propose_changes` | Propose creating, updating or deleting entries, people, aircraft or simulator sessions. Writes nothing and returns a preview |
-| `apply_changes` | Write a proposed change, after you confirmed it |
+| `propose_changes` | Propose creating, updating or deleting entries, people, aircraft or simulator sessions, and adding files, photos, signatures and signing links. Writes nothing and returns a preview |
+| `apply_changes` | Write a proposed change, after you confirmed it. A signing link that the change created is returned in `links` |
 | `get_change_status` | Whether a proposal is pending, applied, rejected, stale or expired |
+
+Files, photos and signatures, needs a login with the `files` scope. A login
+made before that scope existed gets a message to run `jetlog login` again.
+`upload_file` and `create_upload_link` also need write access, and
+`upload_file` with kind `signature` needs the `signatures` scope instead of
+`files`:
+
+| Tool | What it does |
+| --- | --- |
+| `upload_file` | Upload one file from this computer (an absolute path) to your account and return its `attachment_id`. Kinds: `entry_file`, `person_photo`, `signature`. Nothing in the logbook changes until a confirmed change references the file |
+| `list_entry_attachments` | The signature state (none, waived, signed) and the files of one entry |
+| `download_attachment` | Save an entry file or person photo into the download folder and return the path. Signature images are never available |
+| `create_upload_link` | A short-lived page for adding files to one entry or a photo to one person from another device |
+| `get_upload_link_status` | What has landed through an upload link |
 
 `push_payload` (write a payload through the partner API) only exists when
 `JETLOG_USER_KEY` and `JETLOG_PARTNER_KEY` are set. It writes immediately.
@@ -109,6 +125,38 @@ different role, or leave you off when you were not on that flight.
 Importing a whole file is never done by the assistant itself. `import_preview`
 shows what would happen and gives you links to confirm in the app, or you run
 `jetlog import` in a terminal.
+
+Files, photos and signatures follow the same rule. Attaching a file to an
+entry, setting a person's photo, attaching or waiving a signature and creating
+a signing link are all operations of `propose_changes`: you see the preview in
+the chat and nothing happens until you confirm and the assistant calls
+`apply_changes`. Two tools act before that, and neither changes your logbook:
+`upload_file` stores the bytes of one file in your account, where they stay
+unused until a confirmed change references them, and `create_upload_link`
+makes a page you can open to add a file from another device (you get a push
+notification, the link expires after 30 minutes, and every file that lands
+through it shows up as a change you can undo in the app). Signature changes
+may be switched off for AI changes. A waive credits the hours as signed in
+your own totals and is not accepted by an authority, the assistant is told to
+say so.
+
+### Local file access
+
+Two of the local tools touch files on your computer, so know what they can do:
+
+- `upload_file` reads the file at the absolute path the model gives it and
+  stores it in your own Jetlog account. It only reads regular files below the
+  size limit of the kind, refuses a symbolic link, takes the type from the
+  content, and refuses anything under `~/.ssh`, `~/.aws`, `~/.gnupg`,
+  `~/.config` and the Jetlog config folder. It can still read any other file
+  you can read, which is inherent to an upload tool. That is why the model is
+  told to upload only a file you asked for, and why the file is not used for
+  anything until you confirm the change that references it.
+- `download_attachment` writes only inside one folder: `~/Downloads/jetlog`,
+  or the folder in the `JETLOG_DOWNLOAD_DIR` environment variable. The model
+  never picks a path, at most a file name, which is reduced to a plain name
+  with an extension that matches the file's type. It never overwrites an
+  existing file. Signature images are never available.
 
 ## Guide for the assistant
 
@@ -146,6 +194,12 @@ Changing the logbook:
 - If a tool says the login is missing or read-only, pass the instruction on
   to the pilot (`jetlog login --scope write`, then reconnect). Do not look
   for another way to write.
+- Upload a file with `upload_file` only when the pilot asked for that exact
+  file, and say which local path you read. Uploading changes nothing by
+  itself: attach it through `propose_changes` and wait for the pilot's
+  confirmation as for any other change.
+- A waived signature is not accepted by an authority. Tell the pilot so
+  before you propose one. Never offer to replace or remove a signature.
 - Never use `push_payload` unless the pilot asks for the partner API by name.
 
 Converting and importing files:
@@ -165,10 +219,11 @@ When you run the command line instead of MCP tools:
   stderr, results to stdout.
 - These commands are safe to run without asking: `convert`, `validate`,
   `schema`, `link` (without `--open`), `times`, `totals`, `whoami`,
-  `entries`, `people`, `aircraft`, `batches list`, `changes show`, and
-  `import --dry-run`.
+  `entries`, `people`, `aircraft`, `batches list`, `changes show`,
+  `attachments list`, `photos get`, `signatures show`, and `import --dry-run`.
 - These change the pilot's account: `import`, `batches remove`,
-  `changes apply`, `push`. Run the preview first (`--dry-run`, or the preview
+  `changes apply`, `push`, `attachments add`, `attachments remove`,
+  `photos set` and the `signatures` commands except `show`. Run the preview first (`--dry-run`, or the preview
   the command prints), show it to the pilot, and only continue when they say
   so. Do not pass `--yes` on your own initiative.
 - `login` needs the pilot at the terminal with their phone. Ask them to run

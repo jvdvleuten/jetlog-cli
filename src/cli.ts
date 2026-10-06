@@ -20,6 +20,16 @@ import { runExport } from "./commands/export.js";
 import { runImport } from "./commands/import.js";
 import { batchesList, batchesRemove, batchesRemoveAllCli } from "./commands/batches.js";
 import { changesShow, changesApply } from "./commands/changes.js";
+import { attachmentsAdd, attachmentsGet, attachmentsList, attachmentsRemove } from "./commands/attachments.js";
+import { photosGet, photosSet } from "./commands/photos.js";
+import {
+  signaturesAttach,
+  signaturesRequest,
+  signaturesRevoke,
+  signaturesShow,
+  signaturesUnwaive,
+  signaturesWaive
+} from "./commands/signatures.js";
 import { parseOutputFormat } from "./commands/output.js";
 import { ApiError } from "./api/client.js";
 import { formatEntryTimesTable, formatTotalsSummary } from "./commands/times-format.js";
@@ -395,7 +405,7 @@ async function runReadCommand(fn: () => Promise<void>): Promise<void> {
 program
   .command("login")
   .description("Log in to Jetlog via the device-code flow")
-  .option("--scope <scope>", "read or write", "read")
+  .option("--scope <scope>", "read or write (file access and signatures are requested along with it)", "read")
   .option("--profile <name>", "credential profile to save under", "default")
   .option("--base-url <url>", "override API base URL (for local dev)")
   .option("--no-qr", "don't print the QR code in the terminal")
@@ -719,25 +729,178 @@ batches
   .description("Remove an import batch's created entries (soft-delete), previewing first")
   .argument("[id]", "import batch id, omit when passing --all-cli")
   .option("--all-cli", "remove every CLI-created entry across all import batches, ignoring [id]")
+  .option("--include-link-signed", "also remove entries that were signed through a signing link a token created (kept by default)")
   .option("--yes", "skip the confirmation prompt")
   .option("--profile <name>", "credential profile", "default")
   .option("--base-url <url>", "override API base URL (for local dev)")
-  .action(async (id: string | undefined, opts: { allCli?: boolean; yes?: boolean; profile: string; baseUrl?: string }) => {
-    await runReadCommand(() => {
-      if (opts.allCli) return batchesRemoveAllCli({ profile: opts.profile, baseUrl: opts.baseUrl, yes: opts.yes });
-      if (!id) throw new Error("either pass <id> or --all-cli");
-      return batchesRemove({ profile: opts.profile, baseUrl: opts.baseUrl, id, yes: opts.yes });
-    });
-  });
+  .action(
+    async (
+      id: string | undefined,
+      opts: { allCli?: boolean; includeLinkSigned?: boolean; yes?: boolean; profile: string; baseUrl?: string }
+    ) => {
+      await runReadCommand(() => {
+        if (opts.allCli) {
+          return batchesRemoveAllCli({ profile: opts.profile, baseUrl: opts.baseUrl, yes: opts.yes, includeLinkSigned: opts.includeLinkSigned });
+        }
+        if (!id) throw new Error("either pass <id> or --all-cli");
+        return batchesRemove({ profile: opts.profile, baseUrl: opts.baseUrl, id, yes: opts.yes, includeLinkSigned: opts.includeLinkSigned });
+      });
+    }
+  );
 
 batches
   .command("remove-all-cli")
   .description("Remove every CLI-created entry across all import batches, previewing first")
+  .option("--include-link-signed", "also remove entries that were signed through a signing link a token created (kept by default)")
   .option("--yes", "skip the confirmation prompt")
   .option("--profile <name>", "credential profile", "default")
   .option("--base-url <url>", "override API base URL (for local dev)")
-  .action(async (opts: { yes?: boolean; profile: string; baseUrl?: string }) => {
-    await runReadCommand(() => batchesRemoveAllCli({ profile: opts.profile, baseUrl: opts.baseUrl, yes: opts.yes }));
+  .action(async (opts: { includeLinkSigned?: boolean; yes?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() =>
+      batchesRemoveAllCli({ profile: opts.profile, baseUrl: opts.baseUrl, yes: opts.yes, includeLinkSigned: opts.includeLinkSigned })
+    );
+  });
+
+const attachments = program.command("attachments").description("Files on logbook entries (add needs `jetlog login --scope write`)");
+
+addReadFormatOptions(attachments.command("list").description("List the files on an entry").argument("<entry-id>", "entry id")).action(
+  async (entryId: string, opts: { profile: string; baseUrl?: string; json?: boolean; csv?: boolean; table?: boolean }) => {
+    await runReadCommand(() => attachmentsList({ profile: opts.profile, baseUrl: opts.baseUrl, entryId, format: parseOutputFormat(opts) }));
+  }
+);
+
+attachments
+  .command("add")
+  .description("Upload files and attach them to an entry (PNG, JPEG, HEIC or PDF, up to 25 MiB, 20 per entry)")
+  .argument("<entry-id>", "entry id")
+  .argument("<files...>", "local file(s) to attach")
+  .option("--name <file_name>", "file name to store (a single file only), default: the local file name")
+  .option("--yes", "skip the confirmation prompt")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (entryId: string, files: string[], opts: { name?: string; yes?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => attachmentsAdd({ profile: opts.profile, baseUrl: opts.baseUrl, entryId, files, name: opts.name, yes: opts.yes }));
+  });
+
+attachments
+  .command("get")
+  .description("Download an entry file by its attachment id (signature images are never available)")
+  .argument("<attachment-id>", "attachment id, as shown by `attachments list`")
+  .option("-o, --output <path>", "file or directory to write to (default: the current directory)")
+  .option("--force", "overwrite an existing file")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (attachmentId: string, opts: { output?: string; force?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() =>
+      attachmentsGet({ profile: opts.profile, baseUrl: opts.baseUrl, attachmentId, output: opts.output, force: opts.force })
+    );
+  });
+
+attachments
+  .command("remove")
+  .description("Remove a file from its entry")
+  .argument("<entry-attachment-id>", "file row id, the first column of `attachments list`")
+  .option("--yes", "skip the confirmation prompt")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (id: string, opts: { yes?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => attachmentsRemove({ profile: opts.profile, baseUrl: opts.baseUrl, id, yes: opts.yes }));
+  });
+
+const photos = program.command("photos").description("Photos of people in your logbook (set needs `jetlog login --scope write`)");
+
+photos
+  .command("set")
+  .description("Set a person's photo (PNG or JPEG, up to 2 MiB)")
+  .argument("<person-id>", "person id")
+  .argument("<image>", "local image file")
+  .option("--yes", "skip the confirmation prompt")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (personId: string, image: string, opts: { yes?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => photosSet({ profile: opts.profile, baseUrl: opts.baseUrl, personId, image, yes: opts.yes }));
+  });
+
+photos
+  .command("get")
+  .description("Download a person's photo")
+  .argument("<person-id>", "person id")
+  .option("-o, --output <path>", "file or directory to write to (default: the current directory)")
+  .option("--force", "overwrite an existing file")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (personId: string, opts: { output?: string; force?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => photosGet({ profile: opts.profile, baseUrl: opts.baseUrl, personId, output: opts.output, force: opts.force }));
+  });
+
+const signatures = program
+  .command("signatures")
+  .description("Signatures on logbook entries (changes need `jetlog login --scope write`). A token can add a signature, never replace or remove one.");
+
+signatures
+  .command("show")
+  .description("Show an entry's signature state (never the image)")
+  .argument("<entry-id>", "entry id")
+  .option("--json", "machine-readable output")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (entryId: string, opts: { json?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => signaturesShow({ profile: opts.profile, baseUrl: opts.baseUrl, entryId, json: opts.json }));
+  });
+
+signatures
+  .command("attach")
+  .description("Attach a PNG image (up to 5 MiB) as the signature of an unsigned or waived entry")
+  .argument("<entry-id>", "entry id")
+  .argument("<image>", "local PNG file")
+  .option("--yes", "skip the confirmation prompt")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (entryId: string, image: string, opts: { yes?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => signaturesAttach({ profile: opts.profile, baseUrl: opts.baseUrl, entryId, image, yes: opts.yes }));
+  });
+
+signatures
+  .command("waive")
+  .description("Waive the signature on unsigned entries")
+  .argument("<entry-id...>", "entry id(s)")
+  .option("--yes", "skip the confirmation prompt")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (entryIds: string[], opts: { yes?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => signaturesWaive({ profile: opts.profile, baseUrl: opts.baseUrl, entryIds, yes: opts.yes }));
+  });
+
+signatures
+  .command("unwaive")
+  .description("Undo a waived signature")
+  .argument("<entry-id...>", "entry id(s)")
+  .option("--yes", "skip the confirmation prompt")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (entryIds: string[], opts: { yes?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => signaturesUnwaive({ profile: opts.profile, baseUrl: opts.baseUrl, entryIds, yes: opts.yes }));
+  });
+
+signatures
+  .command("request")
+  .description("Create a remote signing link for up to 20 entries (valid 48 hours, printed once)")
+  .argument("<entry-id...>", "entry id(s)")
+  .option("--yes", "skip the confirmation prompt")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (entryIds: string[], opts: { yes?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => signaturesRequest({ profile: opts.profile, baseUrl: opts.baseUrl, entryIds, yes: opts.yes }));
+  });
+
+signatures
+  .command("revoke")
+  .description("Revoke a signing link this login created")
+  .argument("<request-id>", "request id, as printed by `signatures request`")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (requestId: string, opts: { profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => signaturesRevoke({ profile: opts.profile, baseUrl: opts.baseUrl, requestId }));
   });
 
 const changes = program

@@ -64,10 +64,19 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/**
+ * The scopes a login asks for. `files` (download, and upload with `write`) and `signatures` (with
+ * `write`) are separate grants, so a login made before they existed keeps exactly its old powers.
+ * A read login asks for `files` only: `signatures` does nothing without `write`.
+ */
+export function loginScopes(scope: "read" | "write"): string {
+  return scope === "write" ? "read write files signatures" : "read files";
+}
+
 export async function login(opts: LoginOptions, io: LoginIo = defaultIo): Promise<void> {
   const baseUrl = opts.baseUrl ?? process.env.JETLOG_BASE_URL ?? DEFAULT_BASE_URL;
   const client = new ApiClient({ baseUrl });
-  const scope = opts.scope === "write" ? "read write" : "read";
+  const scope = loginScopes(opts.scope);
 
   const grant = await startDeviceAuthorization({ client, scope });
   const matchNumber = grant.match_number;

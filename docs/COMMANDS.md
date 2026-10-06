@@ -6,6 +6,8 @@ Every command also has `--help`.
   `link`, `ai convert`
 - [Login and reading](#login-and-reading): `login`, `logout`, `whoami`,
   `entries`, `people`, `aircraft`, `export`
+- [Files, photos and signatures](#files-photos-and-signatures):
+  `attachments`, `photos`, `signatures`
 - [Flight times](#flight-times): `times`, `totals`
 - [Importing](#importing): `import`, `batches`
 - [Proposed changes](#proposed-changes): `changes`
@@ -141,8 +143,8 @@ It prints a summary and you continue with `jetlog link` or `jetlog push`.
 ### `jetlog login`
 
 ```sh
-jetlog login                    # read-only access
-jetlog login --scope write      # read and write
+jetlog login                    # read-only access, plus downloading files
+jetlog login --scope write      # read and write, plus files and signatures
 jetlog login --profile work     # a second account or token next to the first
 jetlog login --no-qr            # no QR code, only the number, code and link
 jetlog login --open             # also open the sign-in link in a browser
@@ -159,7 +161,23 @@ The result is a personal access token, stored in
 `~/.config/jetlog/credentials.json` (`%APPDATA%\jetlog` on Windows,
 `$XDG_CONFIG_HOME/jetlog` when set), mode `0600` in a `0700` directory.
 
-A token is either `read` or `read write`. An `insufficient_scope` or
+A token carries up to four scopes:
+
+- `read`: read your logbook, including whether an entry is signed, waived or
+  unsigned, how many files an entry has and whether a person has a photo.
+- `write`: create and edit entries, people and aircraft.
+- `files`: with `read`, list and download entry files and person photos. With
+  `write`, also upload files, attach them to entries, set person photos and
+  create upload links.
+- `signatures`: with `write`, attach a signature image, waive and unwaive a
+  signature, and create signing links. It never lets a token read a signature
+  image.
+
+`jetlog login` asks for `read files`, and `jetlog login --scope write` asks
+for `read write files signatures`. A token made before `files` and
+`signatures` existed keeps exactly the powers it had, so log in again to use
+the file, photo and signature commands. Without the scope those commands say
+so and change nothing. An `insufficient_scope` or
 `route_not_available_to_token` error means the token does not allow what you
 asked. Run `jetlog login` again with the right `--scope`.
 
@@ -176,14 +194,16 @@ Connected Apps.
 jetlog entries list --from 2026-01-01 --to 2026-03-31
 jetlog entries list --registration PH-ABC --json
 jetlog entries search --flight-number KL1023 --csv
-jetlog people list
-jetlog aircraft list
+jetlog people
+jetlog aircraft
 ```
 
 The default output is a table. Pass `--json` or `--csv` for machine-readable
 output. `entries list` filters on `--from`, `--to`, `--type`,
 `--registration`, `--airport`, `--flight-number`, `--person-id` and `--role`.
 It returns one page (`--limit`, at most 200) unless you pass `--all`.
+`entries` also shows a `signature` column (none, waived or signed) and a
+`files` column, and `people` shows a `photo` column.
 
 ### `jetlog export`
 
@@ -195,6 +215,93 @@ jetlog export -o logbook.csv --format csv --include-deleted
 Pages through the whole logbook and streams it to disk, with progress on
 stderr. An interrupted JSON export continues where it stopped when you run
 the same command with the same `-o` path again.
+
+## Files, photos and signatures
+
+Three command groups work with the files, photos and signatures in your
+logbook. They need the `files` scope (and `signatures` for signatures), so log
+in again if your token is older, see [Login and reading](#login-and-reading).
+Anything that changes something needs a write login
+(`jetlog login --scope write`), shows what it is about to do and asks for
+confirmation (skip with `--yes`). Data goes to stdout, status and prompts to
+stderr.
+
+```sh
+jetlog attachments list <entry-id>
+jetlog attachments add <entry-id> loadsheet.pdf ramp.jpg
+jetlog attachments get <attachment-id> -o ./loadsheet.pdf
+jetlog attachments remove <entry-attachment-id>
+
+jetlog photos set <person-id> portrait.png
+jetlog photos get <person-id> -o ./portrait.png
+
+jetlog signatures show <entry-id>
+jetlog signatures attach <entry-id> instructor.png
+jetlog signatures waive <entry-id...>
+jetlog signatures unwaive <entry-id...>
+jetlog signatures request <entry-id...>
+jetlog signatures revoke <request-id>
+```
+
+Entry ids come from `jetlog entries list --json`, person ids from
+`jetlog people`.
+
+### Files on entries
+
+`attachments add` uploads PNG, JPEG, HEIC or PDF files (up to 25 MiB each,
+20 per entry) and attaches them to an entry in one go. The type is taken from
+the file's content, not its name. `attachments list` prints the file rows: the
+first column (`id`) is what `attachments remove` takes, `attachment_id` is what
+`attachments get` takes. `get` never overwrites an existing file unless you
+pass `--force`.
+
+### Person photos
+
+`photos set` takes a PNG or JPEG of up to 2 MiB and 8192 pixels per side and
+replaces the current photo if there is one. `photos get` downloads it.
+
+### Signatures
+
+`signatures show` prints the state of an entry (`none`, `waived` or `signed`)
+and the checksum of the signature image. It never prints or downloads the
+image: no token can read a signature image.
+
+- `signatures attach` sets a PNG (up to 5 MiB and 4096 pixels per side) as the
+  signature of an unsigned or waived entry. Dark ink on a transparent
+  background, about 250 pixels on the long edge, looks best in the app. The
+  change is recorded in your account's audit log and you get a push
+  notification. A token can add a signature, never replace or remove one.
+  Once an entry is signed, only the app can change that.
+- `signatures waive` and `unwaive` mark an unsigned entry as waived and undo
+  that. A waiver records the hours as signed in your own totals, an authority
+  does not accept it. A real signature can be added later and replaces it.
+- `signatures request` creates a remote signing link for up to 20 entries,
+  valid for 48 hours, and prints the URL once together with the request id.
+  Anyone who has the link can sign those entries, and sees your email address
+  and these flights. `signatures revoke <request-id>` kills a link. A login
+  can only revoke links it created itself, and revoking the login in the app
+  revokes its open links too. At most 5 links can be open at once.
+- Bulk entries cannot be signed this way. The commands check the state first
+  and skip or refuse what the server would reject.
+
+A signed entry is not locked for tokens: a write token can still edit or
+delete the entry itself. Those writes are recorded in the audit log and
+reported to you by push notification, the same way signature changes are.
+
+### Limits and retries
+
+Uploads are counted per user across the CLI and AI connections: a daily and a
+total byte quota, at most 50 uploads waiting to be confirmed, and one hourly
+budget for signature actions. When a limit is hit the CLI says which and
+stops. For a short per-minute limit it waits up to 60 seconds and retries. For
+anything longer (an hourly limit, a quota) it fails at once with "try again in
+N minutes" instead of sleeping. A signing link request is never retried after
+a server error, because the link may already exist: check the open signing
+links in the Jetlog app before trying again.
+
+Everything these commands write belongs to an edit batch
+(`jetlog batches list`). Removing a batch only deletes the entries that batch
+created, never files or signatures added to entries that were already there.
 
 ## Flight times
 
@@ -297,8 +404,13 @@ jetlog batches remove --all-cli
 
 `remove` shows what would be removed and asks you to confirm (`--yes` to
 skip). It soft-deletes the entries that batch created, and people it created
-that are no longer used. Entries the batch only edited are kept. A signed
-entry is never deleted. `--all-cli` does the same for every CLI import.
+that are no longer used. Entries the batch only edited are kept. An entry
+signed in the app is kept. An entry a token signed by attaching an image
+(`jetlog signatures attach`, an upload link) is deleted with the batch, and
+the preview counts those ("signed by a token"). An entry signed through a
+signing link a token created is kept by default ("kept (link-signed)"). Add
+`--include-link-signed` to delete those too. `--all-cli` does the same for
+every CLI import.
 
 The Jetlog app lists the same batches under Settings > Imports, with the same
 preview before deleting.
@@ -340,6 +452,7 @@ per request, and prints `skipped` and `warnings` from each response.
 | `JETLOG_TOKEN` | Use this token instead of the stored login. Useful in CI. |
 | `JETLOG_BASE_URL` | API base URL, same as `--base-url`. |
 | `JETLOG_PROFILE` | Which login profile `jetlog mcp` uses. |
+| `JETLOG_DOWNLOAD_DIR` | Folder where the MCP tool `download_attachment` saves files. Default `~/Downloads/jetlog`. |
 | `JETLOG_USER_KEY`, `JETLOG_PARTNER_KEY` | Partner API keys for `jetlog push` and the MCP tool `push_payload`. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | Keys for `jetlog ai convert`. |
 | `JETLOG_AI_MODEL` | Model for `jetlog ai convert`. |

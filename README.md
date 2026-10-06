@@ -8,6 +8,7 @@ The binary is called `jetlog`.
 - Import them into your Jetlog account, with a preview first and an undo
   afterwards.
 - Read your logbook back: entries, people, aircraft, full export.
+- Work with the files, photos and signatures in your logbook.
 - Compute flight-time totals locally (PIC, IFR, EASA columns). Night time and
   distance-based figures need your airport catalog, so they need a login.
 - Run an MCP server so an AI assistant such as Claude can read your logbook
@@ -84,8 +85,14 @@ confirm step works, and a short guide written for the assistant itself.
 | `jetlog totals [file]` | Flight-time totals for a file, or for your account when no file is given | only without a file |
 | `jetlog ai convert <file>` | Convert messy text with an LLM, using your own API key | no |
 | `jetlog login`, `logout`, `whoami` | Sign in with the Jetlog app, sign out, show the active login | |
-| `jetlog entries list`, `people list`, `aircraft list` | Read your logbook | read |
+| `jetlog entries list`, `people`, `aircraft` | Read your logbook | read |
 | `jetlog export` | Download your whole logbook as JSON or CSV | read |
+| `jetlog attachments list`, `get` | List and download the files on an entry | read, files |
+| `jetlog photos get` | Download a person's photo | read, files |
+| `jetlog signatures show` | Show whether an entry is signed or waived | read |
+| `jetlog attachments add`, `remove` | Add files to an entry, remove one | write, files |
+| `jetlog photos set` | Set a person's photo | write, files |
+| `jetlog signatures attach`, `waive`, `unwaive`, `request`, `revoke` | Add or waive a signature, create or revoke a signing link | write, signatures |
 | `jetlog import <file>` | Import a file into your account | write |
 | `jetlog batches list`, `batches remove <id>` | List and undo imports | write |
 | `jetlog changes show <id>`, `changes apply <id>` | Inspect or apply a change an assistant proposed | write |
@@ -125,8 +132,13 @@ account:
 - `jetlog import` writes after showing a preview and asking you to confirm.
   `--dry-run` never writes. Every import is a batch that
   `jetlog batches remove <id>` undoes.
+- `jetlog attachments add`, `attachments remove`, `photos set` and the
+  `signatures` commands that change something (`attach`, `waive`, `unwaive`,
+  `request`, `revoke`) show what they will do and ask you to confirm. A token
+  can add a signature but never replace or remove one.
 - `jetlog changes apply` and the MCP tool `apply_changes` write a change that
-  was proposed and previewed first.
+  was proposed and previewed first. Files, photos and signatures go through
+  the same proposal step in the MCP server.
 - `jetlog push` sends a payload to the partner API straight away.
 
 A link from `jetlog link` writes nothing by itself. The app shows an import
@@ -134,8 +146,12 @@ preview that you confirm there.
 
 Your login is a personal access token stored in
 `~/.config/jetlog/credentials.json` (mode 0600). It is read-only unless you
-ask for `--scope write`. Revoke a token in the Jetlog app under Settings >
-Connected Apps.
+ask for `--scope write`. Besides `read` and `write` a token can carry the
+scopes `files` and `signatures`. `jetlog login` asks for `read files`, and
+`jetlog login --scope write` asks for `read write files signatures`. A login
+made with an older version of the tool lacks the last two, so log in again to
+use the file, photo and signature commands. Revoke a token in the Jetlog app
+under Settings > Connected Apps.
 
 ## Documentation
 

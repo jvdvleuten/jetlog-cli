@@ -5,6 +5,8 @@ export interface RecordedRequest {
   path: string;
   headers: Record<string, string | string[] | undefined>;
   body: unknown;
+  /** The request body exactly as received, for binary uploads. */
+  rawBody: Buffer;
 }
 
 export type Handler = (req: RecordedRequest, res: ServerResponse) => void;
@@ -25,7 +27,8 @@ export class TestServer {
     const chunks: Buffer[] = [];
     req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf-8");
+      const rawBody = Buffer.concat(chunks);
+      const raw = rawBody.toString("utf-8");
       let body: unknown;
       try {
         body = raw ? JSON.parse(raw) : undefined;
@@ -36,7 +39,8 @@ export class TestServer {
         method: req.method ?? "GET",
         path: req.url ?? "/",
         headers: req.headers,
-        body
+        body,
+        rawBody
       };
       this.requests.push(recorded);
 
