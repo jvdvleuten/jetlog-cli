@@ -306,7 +306,7 @@ start_login() {
   CLI_USER_CODE=""
   waited=0
   while [ "$waited" -lt 30 ]; do
-    CLI_NUMBER="$(sed -n 's/.*Then pick this number in the Jetlog app: *\([0-9][0-9]*\).*/\1/p' "$LOGIN_OUT" | head -1)"
+    CLI_NUMBER="$(sed -n 's/.*Your number: *\([0-9][0-9]*\).*/\1/p' "$LOGIN_OUT" | head -1)"
     CLI_USER_CODE="$(sed -n 's/.* and enter \([A-Z0-9-][A-Z0-9-]*\)$/\1/p' "$LOGIN_OUT" | head -1)"
     if [ -n "$CLI_NUMBER" ] && [ -n "$CLI_USER_CODE" ]; then
       return 0

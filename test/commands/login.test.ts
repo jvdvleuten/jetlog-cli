@@ -89,7 +89,10 @@ describe("login command", () => {
     const text = out.join("\n");
     expect(text).toContain("Scan this with your iPhone camera");
     expect(text).toContain("█");
-    expect(text).toContain("42");
+    expect(text).toContain("Your number:   42");
+    // The number is shown before the QR code and before the link.
+    expect(text.indexOf("Your number:")).toBeLessThan(text.indexOf("Scan this with your iPhone camera"));
+    expect(text.indexOf("Your number:")).toBeLessThan(text.indexOf("https://jetlog.app/device"));
     expect(text).toContain("WDJB-MJHT");
     expect(text).toContain("https://jetlog.app/device?user_code=WDJB-MJHT");
     expect(text).toContain("Opened in the Jetlog app");

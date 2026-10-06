@@ -150,8 +150,8 @@ jetlog login --no-qr            # no QR code, only the number, code and link
 jetlog login --open             # also open the sign-in link in a browser
 ```
 
-The command prints a QR code (when the terminal is wide enough), a two-digit
-number, a code and a link. Scan the QR code with your iPhone camera, or open
+The command prints a two-digit number first, then a QR code (when the
+terminal is wide enough), a code and a link. Scan the QR code with your iPhone camera, or open
 Jetlog and go to Settings > Connected Apps > Scan QR Code. Pick the number
 from the terminal in the app and confirm with Face ID. Picking a different
 number denies the login, so run `jetlog login` again if that happens. Without

@@ -85,6 +85,11 @@ export async function login(opts: LoginOptions, io: LoginIo = defaultIo): Promis
   io.out("  Sign in to Jetlog");
   io.out("");
 
+  // The number comes first: it is what the pilot has to remember while looking at the phone.
+  io.out(`  Your number:   ${matchNumber}`);
+  io.out("  Pick this number in the Jetlog app when it asks.");
+  io.out("");
+
   const qr = renderQr(grant.verification_uri_complete);
   if (shouldPrintQr(io, qr.width, opts.qr ?? true)) {
     io.out("  Scan this with your iPhone camera:");
@@ -93,8 +98,6 @@ export async function login(opts: LoginOptions, io: LoginIo = defaultIo): Promis
     io.out("");
   }
 
-  io.out(`  Then pick this number in the Jetlog app:   ${matchNumber}`);
-  io.out("");
   io.out(`  No camera? Open ${grant.verification_uri} and enter ${grant.user_code}`);
   io.out("  (or in the app: Settings > Connected Apps > enter code)");
   io.out(`  Link:   ${grant.verification_uri_complete}`);
