@@ -1,0 +1,6 @@
+mcc_date,flightnumber,ac_reg,af_dep,af_arr,time_dep,time_to,time_ldg,time_arr,to_day,to_night,ldg_day,ldg_night,time_total,time_pic,time_sic,ac_issim,pilot1_id,pilot1_name,pilot2_id,pilot2_name,remarks
+2026-01-10,KL1001,PH-ABC,EHAM,EGLL,14:00,14:08,15:28,00:00,1,0,1,0,1:35,1:35,0:00,,1,SELF,,,Routine flight
+2026-01-11,KL1002,PH-ABC,EGLL,EHAM,09:00,09:10,10:25,00:00,1,0,1,0,1:32,0:00,1:32,,2001,Anna Bakker,2002,SELF,Return leg
+2026-01-12,,NL-249,,,09:00,00:00,00:00,12:00,0,0,0,0,3:00,0:00,0:00,sim,1,SELF,,,LPC session
+2026-01-13,KL1004,,,,10:00,10:05,11:00,00:00,1,0,1,0,1:00,1:00,0:00,,1,SELF,,,
+2026-01-10,KL1001,PH-ABC,EHAM,EGLL,14:00,00:00,00:00,00:00,0,0,0,0,1:35,0:00,0:00,,,,,,

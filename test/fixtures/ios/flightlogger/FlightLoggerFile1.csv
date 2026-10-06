@@ -1,0 +1,4 @@
+date,departure_airport_name,off_block,arrival_airport_name,on_block,type_of_aircraft,registration,name_of_pilot_in_command,total,day,night,single_engine_vfr,single_engine_ifr,multi_engine_vfr,multi_engine_ifr,pilot_in_command_time,co_pilot,multi_pilot,flight_instructor,dual,if_time,synthetic_training,instructor_synthetic_training,landings_day,landings_night,remarks_and_endorsements,include_in_ftl
+"30.10.2023","EHAM","10:00","EGLL","11:30","C172","PHABC","","1:30","","","","","","","1:30","","","","","","","","1","","Solo flight",""
+"31.10.2023","EHAM","09:00","EHRD","09:45","C172","PHDEF","1. NCL","0:45","","","","","","","","","","","0:45","","","","1","","Training with instructor",""
+"01.11.2023","","14:00","","15:00","FNPT2","","","","","","","","","","","","","","","","1:00","0:00","","","Sim session",""

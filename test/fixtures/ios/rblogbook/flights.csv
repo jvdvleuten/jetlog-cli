@@ -1,0 +1,5 @@
+Date,Duty Type,Departure,Arrival,Aircraft ID,Sched Out,Sched In,Out,In,Off,On,Day Takeoff,Night Takeoff,Day Landing,Night Landing,Total Block,PIC,SIC,PICUS,Relief Time,Night,IFR,Instructor,Examiner,Simulator,Flight #,Crew PIC,Crew SIC,Crew First Officer,Crew Second Officer,Crew Instructor,Crew Relief1,Remarks
+2024-05-01,2,EHAM,EGLL,PHBXA,09:50,,10:00,11:30,10:10,11:20,0,1,0,1,90,90,,,,30,,,,,KL123,Self+++,,John+Smith++,,,,Test flight
+2024-05-02,1,,,SIM1,,,,,,,,,,,,,,,,,,,,60,,Self+++,,,,John+Smith+++,,FSTD session
+2024-05-03,1,,,PHBXA,,,,,,,,,,,0,,,,,,,,,,,,,,,,,Ground duty skipped
+2024-05-04,2,EHAM,LFPG,PHBXB,,,,,,,,,,,60,,,,,,,,,,KL456,,,,,,,No crew columns at all

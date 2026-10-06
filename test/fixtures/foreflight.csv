@@ -1,0 +1,8 @@
+Aircraft Table
+AircraftID,TypeCode,Year,Make,Model,Category,Class,GearType,EngineType,Complex,HighPerformance,Pressurized,TAA
+PHBXD,B738,2015,Boeing,737-800,Airplane,SEL,FixedTricycle,Reciprocating,FALSE,FALSE,FALSE,FALSE
+
+Flights Table
+Date,AircraftID,From,To,FlightNumber,TimeOut,TimeOff,TimeOn,TimeIn,DayLandingsFullStop,NightLandingsFullStop,PilotComments
+2026-02-01,PHBXD,EHAM,EGLL,KL1023,14:00,14:08,14:28,14:55,1,0,Smooth flight
+2026-02-02,PHBXD,EGLL,EHAM,KL1024,16:00,16:08,16:28,16:55,0,1,Night landing

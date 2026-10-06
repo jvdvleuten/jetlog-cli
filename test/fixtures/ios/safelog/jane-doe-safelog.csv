@@ -1,0 +1,8 @@
+Date	Aircraft Type	Aircraft Registration	Name of PIC	Holder's Operating Capacity	Departure	Departure Time	Arrival	Arrival Time	Total Flight Time	Day T-O	Day Ldg	Night T-O	Night Ldg	Day Single-Engine (SE) in Command	Day Single-Engine (SE) PICUS	Day Single-Engine (SE) Dual	Day Single-Engine (SE) P2	Day Multi-Engine (ME) in Command	Day Multi-Engine (ME) PICUS	Day Multi-Engine (ME) Co-Pilot	Day Multi-Engine (ME) Dual	Night Single-Engine (SE) in Command	Night Single-Engine (SE) PICUS	Night Single-Engine (SE) Dual	Night Single-Engine (SE) P2	Night Multi-Engine (ME) in Command	Night Multi-Engine (ME) PICUS	Night Multi-Engine (ME) Co-Pilot	Night Multi-Engine (ME) Dual	Simulator Sim.Type	Simulator Sim.Time	Instrument Flying	Instructor Flying	Remarks
+2024-01-05	PA28	PH-ABC		PIC	EHAM	08:00 UTC	EHRD	08:50 UTC	0:50	1	1			0:50																				
+2024-01-06	C172	PH-DEF	Jane Doe	Copilot	EHRD	09:00 LOCAL	EHAM	09:45 LOCAL	0:45	1	1									0:45														
+2013-09-07	DA40	PH-GHI	Jane Doe	P/UT	EHLE	07:00 LOCAL	EHLE	08:00 LOCAL	1:00	4	4										1:00													
+2015-02-17	C172	PH-JKL			ELLX	14:02 UTC	ELLX	15:30 UTC	1:28	1	1				1:28																			
+2024-01-08																														FNPT2	1:15			LOFT session with engine failure and go-around
+2024-01-08																														FNPT2	1:00		1:00	
+2010-01-13				PIC																														

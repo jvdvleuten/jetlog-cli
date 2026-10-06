@@ -1,0 +1,61 @@
+{
+  "entries": [
+    {
+      "type": "flight",
+      "date": "2026-01-05",
+      "flight_number": "KL1023",
+      "registration": "PHBXD",
+      "from": "EHAM",
+      "to": "EGLL",
+      "off_blocks": "08:00",
+      "airborne": "08:12",
+      "touchdown": "09:05",
+      "on_blocks": "09:15",
+      "people": [
+        {
+          "ref_id": "SELF",
+          "role": "PIC"
+        }
+      ]
+    },
+    {
+      "type": "flight",
+      "date": "2026-01-05",
+      "flight_number": "KL1024",
+      "registration": "PHBXD",
+      "from": "EGLL",
+      "to": "EHAM",
+      "off_blocks": "10:10",
+      "airborne": "10:25",
+      "touchdown": "11:20",
+      "on_blocks": "11:28",
+      "people": [
+        {
+          "ref_id": "SELF",
+          "role": "PIC"
+        }
+      ],
+      "remarks": "Line check"
+    },
+    {
+      "type": "flight",
+      "date": "2026-01-07",
+      "flight_number": "KL1765",
+      "registration": "PHEZA",
+      "from": "EHAM",
+      "to": "EDDF",
+      "off_blocks": "17:00",
+      "airborne": "17:11",
+      "touchdown": "18:02",
+      "on_blocks": "18:10",
+      "people": [
+        {
+          "ref_id": "SELF",
+          "role": "PIC"
+        }
+      ],
+      "remarks": "Night landing"
+    }
+  ],
+  "people": []
+}
