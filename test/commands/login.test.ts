@@ -101,10 +101,10 @@ describe("login command", () => {
   });
 
   it("asks for the files and signatures scopes next to read and write", async () => {
-    expect(loginScopes("read")).toBe("read files");
+    expect(loginScopes("read")).toBe("read files signatures");
     expect(loginScopes("write")).toBe("read write files signatures");
 
-    for (const [scope, expected] of [["read", "read files"], ["write", "read write files signatures"]] as const) {
+    for (const [scope, expected] of [["read", "read files signatures"], ["write", "read write files signatures"]] as const) {
       const server = new TestServer([...success]);
       await server.start();
       try {

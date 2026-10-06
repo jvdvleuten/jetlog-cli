@@ -235,7 +235,7 @@ export const FILES_SCOPE_MESSAGE = "your token is missing the files scope. Run `
 /** Shown when the download call lists an attachment id as `forbidden`: a signature image and no `signatures` scope. */
 export const SIGNATURES_SCOPE_MESSAGE =
   "this login was made without the signatures permission, so signature images are not available. " +
-  "Run `jetlog login --scope write` again (the login that asks for it) and keep the signatures permission ticked.";
+  "Run `jetlog login` again and keep the signatures permission ticked.";
 
 export class ApiClient {
   readonly baseUrl: string;

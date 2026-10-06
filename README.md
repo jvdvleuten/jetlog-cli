@@ -150,7 +150,7 @@ preview that you confirm there.
 Your login is a personal access token stored in
 `~/.config/jetlog/credentials.json` (mode 0600). It is read-only unless you
 ask for `--scope write`. Besides `read` and `write` a token can carry the
-scopes `files` and `signatures`. `jetlog login` asks for `read files`, and
+scopes `files` and `signatures`. `jetlog login` asks for `read files signatures`, and
 `jetlog login --scope write` asks for `read write files signatures`. A login
 made with an older version of the tool lacks the last two, so log in again to
 use the file, photo and signature commands. Revoke a token in the Jetlog app

@@ -171,10 +171,10 @@ A token carries up to four scopes:
   create upload links.
 - `signatures`: download signature images, and with `write`, attach, replace
   and remove a signature image, waive and unwaive a signature, and create
-  signing links. `jetlog login --scope write` asks for it.
+  signing links.
 
-`jetlog login` asks for `read files`, and `jetlog login --scope write` asks
-for `read write files signatures`. A token made before `files` and
+`jetlog login` asks for `read files signatures`, and `jetlog login --scope
+write` asks for `read write files signatures`. A token made before `files` and
 `signatures` existed keeps exactly the powers it had, so log in again to use
 the file, photo and signature commands. Without the scope those commands say
 so and change nothing. An `insufficient_scope` or
@@ -271,7 +271,7 @@ It works like `attachments get`: it saves into the current directory, or to
 `-o` (a file or a directory), and never overwrites unless you pass `--force`.
 If the entry is not signed it says so and exits with 1. If the login was made
 without the `signatures` permission it says so and tells you to run
-`jetlog login --scope write` again and keep that permission ticked.
+`jetlog login` again and keep that permission ticked.
 
 - `signatures attach` sets a PNG (up to 5 MiB and 4096 pixels per side) as the
   signature of an entry. Dark ink on a transparent background, about 250

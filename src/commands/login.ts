@@ -67,10 +67,10 @@ function formatDuration(seconds: number): string {
 /**
  * The scopes a login asks for. `files` (download, and upload with `write`) and `signatures` (with
  * `write`) are separate grants, so a login made before they existed keeps exactly its old powers.
- * A read login asks for `files` only: the signatures permission comes with the write login.
+ * A read login asks for both as well: with `read` they allow downloading files, photos and signature images.
  */
 export function loginScopes(scope: "read" | "write"): string {
-  return scope === "write" ? "read write files signatures" : "read files";
+  return scope === "write" ? "read write files signatures" : "read files signatures";
 }
 
 export async function login(opts: LoginOptions, io: LoginIo = defaultIo): Promise<void> {
