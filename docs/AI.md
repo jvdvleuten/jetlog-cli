@@ -87,13 +87,13 @@ Files, photos and signatures, needs a login with the `files` scope. A login
 made before that scope existed gets a message to run `jetlog login` again.
 `upload_file` and `create_upload_link` also need write access, and
 `upload_file` with kind `signature` needs the `signatures` scope instead of
-`files`:
+`files`, and so does downloading a signature image:
 
 | Tool | What it does |
 | --- | --- |
 | `upload_file` | Upload one file from this computer (an absolute path) to your account and return its `attachment_id`. Kinds: `entry_file`, `person_photo`, `signature`. Nothing in the logbook changes until a confirmed change references the file |
-| `list_entry_attachments` | The signature state (none, waived, signed) and the files of one entry |
-| `download_attachment` | Save an entry file or person photo into the download folder and return the path. Signature images are never available |
+| `list_entry_attachments` | The signature state (none, waived, signed), the id of the signature image and the files of one entry |
+| `download_attachment` | Save an entry file, person photo or signature image into the download folder and return the path. A signature image needs the `signatures` scope |
 | `create_upload_link` | A short-lived page for adding files to one entry or a photo to one person from another device |
 | `get_upload_link_status` | What has landed through an upload link |
 
@@ -127,7 +127,7 @@ shows what would happen and gives you links to confirm in the app, or you run
 `jetlog import` in a terminal.
 
 Files, photos and signatures follow the same rule. Attaching a file to an
-entry, setting a person's photo, attaching or waiving a signature and creating
+entry, setting a person's photo, attaching, replacing, removing or waiving a signature and creating
 a signing link are all operations of `propose_changes`: you see the preview in
 the chat and nothing happens until you confirm and the assistant calls
 `apply_changes`. Two tools act before that, and neither changes your logbook:
@@ -136,7 +136,9 @@ unused until a confirmed change references them, and `create_upload_link`
 makes a page you can open to add a file from another device (you get a push
 notification, the link expires after 30 minutes, and every file that lands
 through it shows up as a change you can undo in the app). Signature changes
-may be switched off for AI changes. A waive credits the hours as signed in
+may be switched off for AI changes. With the `signatures` scope the assistant
+can download a signature image, replace it with another one and remove it.
+Each of those is recorded in your audit log and you get a push notification. A waive credits the hours as signed in
 your own totals and is not accepted by an authority, the assistant is told to
 say so.
 
@@ -156,7 +158,8 @@ Two of the local tools touch files on your computer, so know what they can do:
   or the folder in the `JETLOG_DOWNLOAD_DIR` environment variable. The model
   never picks a path, at most a file name, which is reduced to a plain name
   with an extension that matches the file's type. It never overwrites an
-  existing file. Signature images are never available.
+  existing file. A signature image is saved the same way when the login has
+  the `signatures` scope.
 
 ## Guide for the assistant
 
@@ -199,7 +202,13 @@ Changing the logbook:
   itself: attach it through `propose_changes` and wait for the pilot's
   confirmation as for any other change.
 - A waived signature is not accepted by an authority. Tell the pilot so
-  before you propose one. Never offer to replace or remove a signature.
+  before you propose one.
+- Replacing or removing a signature is a destructive change to a legal record.
+  Always show the preview, name the entry, say whether the signature is
+  replaced or removed, and wait for a clear yes to that exact change. Never do
+  it on a general earlier go-ahead. A replace is an entry update with a new
+  `signature_attachment_id` (any signature image already in the logbook, or
+  one from `upload_file`). A remove is `signature_attachment_id: null`.
 - Never use `push_payload` unless the pilot asks for the partner API by name.
 
 Converting and importing files:
@@ -220,10 +229,10 @@ When you run the command line instead of MCP tools:
 - These commands are safe to run without asking: `convert`, `validate`,
   `schema`, `link` (without `--open`), `times`, `totals`, `whoami`,
   `entries`, `people`, `aircraft`, `batches list`, `changes show`,
-  `attachments list`, `photos get`, `signatures show`, and `import --dry-run`.
+  `attachments list`, `photos get`, `signatures show`, `signatures get`, and `import --dry-run`.
 - These change the pilot's account: `import`, `batches remove`,
   `changes apply`, `push`, `attachments add`, `attachments remove`,
-  `photos set` and the `signatures` commands except `show`. Run the preview first (`--dry-run`, or the preview
+  `photos set` and the `signatures` commands except `show` and `get`. Run the preview first (`--dry-run`, or the preview
   the command prints), show it to the pilot, and only continue when they say
   so. Do not pass `--yes` on your own initiative.
 - `login` needs the pilot at the terminal with their phone. Ask them to run

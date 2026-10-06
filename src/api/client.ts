@@ -99,13 +99,12 @@ const CODE_MESSAGES: Record<string, string> = {
 /** Plain words for the `reason` of one `signature_rejected` error row. */
 const SIGNATURE_REASON_MESSAGES: Record<string, string> = {
   inline_signature_not_supported: "inline signatures are not supported, attach a PNG image instead.",
-  signature_removal_not_allowed: "a signature cannot be removed by a token.",
   invalid_signature_reference: "the uploaded image is not usable as a signature. Try the upload again.",
   entry_not_signable: "this entry cannot be signed (it is a bulk entry, deleted or unknown).",
-  already_signed: "this entry is already signed, and a token cannot replace a signature.",
-  signature_origin_not_allowed:
-    "this image was captured in the app or through a signing link, so a token cannot reuse it. Upload the image from a file instead.",
+  already_signed: "this entry is signed, so it cannot be waived. Remove the signature first.",
   signature_conflict: "a signature and a waiver cannot be set in the same change.",
+  legacy_signature_not_migrated:
+    "this entry's signature is stored in an older format that cannot be replaced or removed from here yet. Nothing was changed. Try again later, or change it in the Jetlog app.",
   signature_writes_not_enabled: "signature changes by AI clients are switched off on the server for now."
 };
 
@@ -232,6 +231,11 @@ function parseRetryAfter(response: Response): number | undefined {
 
 /** Shown when a token without the `files` scope reads an entry or person: the server then leaves the file keys out. */
 export const FILES_SCOPE_MESSAGE = "your token is missing the files scope. Run `jetlog login` again to grant it.";
+
+/** Shown when the download call lists an attachment id as `forbidden`: a signature image and no `signatures` scope. */
+export const SIGNATURES_SCOPE_MESSAGE =
+  "this login was made without the signatures permission, so signature images are not available. " +
+  "Run `jetlog login --scope write` again (the login that asks for it) and keep the signatures permission ticked.";
 
 export class ApiClient {
   readonly baseUrl: string;
@@ -873,7 +877,7 @@ export interface AttachmentDownloadUrlsResponse {
   attachments: AttachmentDownloadUrl[];
   /** Ids with no row for this user. */
   gone?: string[];
-  /** Ids a token may never download (signature images). */
+  /** Ids this token may not download: signature images when the token lacks the `signatures` scope. */
   forbidden?: string[];
 }
 

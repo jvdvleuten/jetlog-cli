@@ -24,6 +24,8 @@ import { attachmentsAdd, attachmentsGet, attachmentsList, attachmentsRemove } fr
 import { photosGet, photosSet } from "./commands/photos.js";
 import {
   signaturesAttach,
+  signaturesGet,
+  signaturesRemove,
   signaturesRequest,
   signaturesRevoke,
   signaturesShow,
@@ -784,7 +786,7 @@ attachments
 
 attachments
   .command("get")
-  .description("Download an entry file by its attachment id (signature images are never available)")
+  .description("Download an entry file by its attachment id (signature images need `signatures get`)")
   .argument("<attachment-id>", "attachment id, as shown by `attachments list`")
   .option("-o, --output <path>", "file or directory to write to (default: the current directory)")
   .option("--force", "overwrite an existing file")
@@ -835,11 +837,11 @@ photos
 
 const signatures = program
   .command("signatures")
-  .description("Signatures on logbook entries (changes need `jetlog login --scope write`). A token can add a signature, never replace or remove one.");
+  .description("Signatures on logbook entries (changes need `jetlog login --scope write`; images need the signatures permission). Attach, replace and remove are recorded in your audit log.");
 
 signatures
   .command("show")
-  .description("Show an entry's signature state (never the image)")
+  .description("Show an entry's signature state and checksum (the image itself: `signatures get`)")
   .argument("<entry-id>", "entry id")
   .option("--json", "machine-readable output")
   .option("--profile <name>", "credential profile", "default")
@@ -849,8 +851,20 @@ signatures
   });
 
 signatures
+  .command("get")
+  .description("Download the signature image of a signed entry (needs the signatures permission)")
+  .argument("<entry-id>", "entry id")
+  .option("-o, --output <path>", "file or directory to write to (default: the current directory)")
+  .option("--force", "overwrite an existing file")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (entryId: string, opts: { output?: string; force?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => signaturesGet({ profile: opts.profile, baseUrl: opts.baseUrl, entryId, output: opts.output, force: opts.force }));
+  });
+
+signatures
   .command("attach")
-  .description("Attach a PNG image (up to 5 MiB) as the signature of an unsigned or waived entry")
+  .description("Attach a PNG image (up to 5 MiB) as the signature of an entry. On a signed entry it replaces the signature")
   .argument("<entry-id>", "entry id")
   .argument("<image>", "local PNG file")
   .option("--yes", "skip the confirmation prompt")
@@ -858,6 +872,17 @@ signatures
   .option("--base-url <url>", "override API base URL (for local dev)")
   .action(async (entryId: string, image: string, opts: { yes?: boolean; profile: string; baseUrl?: string }) => {
     await runReadCommand(() => signaturesAttach({ profile: opts.profile, baseUrl: opts.baseUrl, entryId, image, yes: opts.yes }));
+  });
+
+signatures
+  .command("remove")
+  .description("Remove the signature image from signed entries (they go back to unsigned)")
+  .argument("<entry-id...>", "entry id(s)")
+  .option("--yes", "skip the confirmation prompt")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (entryIds: string[], opts: { yes?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => signaturesRemove({ profile: opts.profile, baseUrl: opts.baseUrl, entryIds, yes: opts.yes }));
   });
 
 signatures

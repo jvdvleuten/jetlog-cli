@@ -1,10 +1,11 @@
 /**
- * `jetlog signatures show|attach|waive|unwaive|request|revoke`.
+ * `jetlog signatures show|get|attach|remove|waive|unwaive|request|revoke`.
  *
  * Every change previews first and asks for confirmation unless `--yes`. Writes of entry rows open one
- * `edit` batch per run. A token can attach a signature image only to an unsigned or waived entry, and can
- * never replace or remove one, so the commands check the entry state up front and skip or refuse what the
- * server would reject anyway. Status and prompts go to stderr, data to stdout.
+ * `edit` batch per run. With the `signatures` scope a token can read, attach, replace and remove the signature
+ * image of an entry, so the commands check the entry state up front to preview the change and to skip what
+ * does not apply. Every change is recorded in the account's audit log. Status and prompts go to stderr,
+ * data to stdout.
  */
 import {
   createImportBatch,
@@ -15,6 +16,7 @@ import {
   type ApiClient,
   type EntryDetail
 } from "../api/client.js";
+import { fetchAttachment, saveAttachment } from "../attachments/download.js";
 import { inspectFile, uploadInspected } from "../attachments/upload.js";
 import { confirm } from "./confirm.js";
 import { requireClient } from "./entries.js";
@@ -71,6 +73,25 @@ export async function signaturesShow(opts: Common & { entryId: string; json?: bo
   if (info.is_bulk === true) console.log("bulk: yes (bulk entries cannot be signed here)");
 }
 
+export async function signaturesGet(opts: Common & { entryId: string; output?: string; force?: boolean }): Promise<void> {
+  const client = await requireClient(opts.profile, opts.baseUrl);
+  const entry = await orNotFound(`entry ${opts.entryId}`, () => getEntry(client, opts.entryId));
+  const state = stateOf(entry);
+  const attachmentId = entry.signature_attachment_id;
+  if (state !== "signed" || typeof attachmentId !== "string" || attachmentId === "") {
+    throw new Error(`entry ${describeEntry(entry)}: this entry is not signed, so there is no signature image to download.`);
+  }
+
+  const { meta, bytes } = await fetchAttachment(client, attachmentId);
+  const path = await saveAttachment(
+    { attachment_id: meta.id, content_type: meta.content_type, file_name: `signature-${String(entry.id)}` },
+    bytes,
+    opts.output ? { path: opts.output, force: opts.force } : { dir: process.cwd(), force: opts.force }
+  );
+  console.error(`Saved ${formatBytes(bytes.length)} (${meta.content_type}).`);
+  console.log(path);
+}
+
 export async function signaturesAttach(opts: Common & { entryId: string; image: string; yes?: boolean }): Promise<void> {
   // Local checks first, so a bad file fails before anything is sent.
   const file = await inspectFile(opts.image, "signature");
@@ -79,18 +100,17 @@ export async function signaturesAttach(opts: Common & { entryId: string; image: 
   const state = stateOf(entry);
 
   console.error(`Entry ${describeEntry(entry)}`);
-  if (state === "signed") {
-    throw new Error("this entry is already signed. A token cannot replace or remove a signature, only the app can.");
-  }
   if (entry.is_bulk === true) throw new Error("bulk entries cannot be signed.");
 
+  const described = `${sanitizeForTerminal(file.fileName)} (${file.contentType}, ${formatBytes(file.byteSize)})`;
+  const replacing = state === "signed";
   console.error(
-    `Will attach ${sanitizeForTerminal(file.fileName)} (${file.contentType}, ${formatBytes(file.byteSize)}) as the signature. ` +
-      "This is recorded in your account's audit log."
+    replacing
+      ? `Will replace the existing signature with ${described}. This is recorded in your account's audit log.`
+      : `Will attach ${described} as the signature. This is recorded in your account's audit log.`
   );
   if (state === "waived") console.error("The waiver on this entry is replaced by the signature.");
-  console.error("A token cannot replace or remove a signature once it is set.");
-  if (!opts.yes && !(await confirm("Attach this signature?"))) {
+  if (!opts.yes && !(await confirm(replacing ? "Replace the existing signature?" : "Attach this signature?"))) {
     console.error("aborted: nothing was changed.");
     return;
   }
@@ -98,15 +118,18 @@ export async function signaturesAttach(opts: Common & { entryId: string; image: 
   const batch = await createImportBatch(client, { kind: "edit", client: "jetlog-cli", label: `signatures attach ${opts.entryId}` });
   const uploaded = await uploadInspected(client, "signature", file);
   await putResourceChunked(client, "entries", [{ id: opts.entryId, signature_attachment_id: uploaded.attachment_id }], batch.id);
-  console.error("Signature attached.");
+  console.error(replacing ? "Signature replaced." : "Signature attached.");
 }
 
 interface WaiveSpec {
   /** Command name, for the batch label. */
-  command: "waive" | "unwaive";
+  command: "waive" | "unwaive" | "remove";
   /** The state an entry must be in for the change to apply. */
   from: SignatureState;
-  value: boolean;
+  /** The fields written for each entry that applies. */
+  row: (entry: EntryDetail) => Record<string, unknown>;
+  /** Skip bulk entries (they cannot be signed or waived). */
+  skipBulk: boolean;
   /** Plain-words reason why an entry in `state` is left alone. */
   skipReason: (state: SignatureState) => string;
   warning: string[];
@@ -124,7 +147,7 @@ async function changeWaiver(opts: Common & { entryIds: string[]; yes?: boolean }
     const state = stateOf(entry);
     // An entry in an unknown state is sent anyway: the server knows the truth and answers with a clear error.
     if (state === spec.from || state === "unknown") {
-      if (spec.value && entry.is_bulk === true) console.error(`Skipping ${describeEntry(entry)}: bulk entries cannot be signed.`);
+      if (spec.skipBulk && entry.is_bulk === true) console.error(`Skipping ${describeEntry(entry)}: bulk entries cannot be signed.`);
       else {
         console.error(`Entry ${describeEntry(entry)}`);
         todo.push(entry);
@@ -148,7 +171,7 @@ async function changeWaiver(opts: Common & { entryIds: string[]; yes?: boolean }
   await putResourceChunked(
     client,
     "entries",
-    todo.map((e) => ({ id: e.id, signature_waived: spec.value })),
+    todo.map(spec.row),
     batch.id
   );
   console.error(spec.done(todo.length));
@@ -158,8 +181,9 @@ export function signaturesWaive(opts: Common & { entryIds: string[]; yes?: boole
   return changeWaiver(opts, {
     command: "waive",
     from: "none",
-    value: true,
-    skipReason: (state) => (state === "waived" ? "already waived." : "already signed, and a token cannot replace a signature."),
+    row: (e) => ({ id: e.id, signature_waived: true }),
+    skipBulk: true,
+    skipReason: (state) => (state === "waived" ? "already waived." : "already signed. Use `signatures attach` to replace the signature."),
     warning: [
       "Waiving records these hours as signed in your own totals. An authority does not accept a waived signature.",
       "A real signature can still be added later and replaces the waiver."
@@ -173,11 +197,28 @@ export function signaturesUnwaive(opts: Common & { entryIds: string[]; yes?: boo
   return changeWaiver(opts, {
     command: "unwaive",
     from: "waived",
-    value: false,
+    row: (e) => ({ id: e.id, signature_waived: false }),
+    skipBulk: false,
     skipReason: (state) => (state === "none" ? "not waived." : "signed, not waived."),
     warning: ["The entries go back to unsigned."],
     prompt: (n) => `Undo the waiver on ${plural(n, "entry", "entries")}?`,
     done: (n) => `Undid the waiver on ${plural(n, "entry", "entries")}.`
+  });
+}
+
+export function signaturesRemove(opts: Common & { entryIds: string[]; yes?: boolean }): Promise<void> {
+  return changeWaiver(opts, {
+    command: "remove",
+    from: "signed",
+    row: (e) => ({ id: e.id, signature_attachment_id: null }),
+    skipBulk: false,
+    skipReason: (state) => (state === "waived" ? "waived, not signed. Use `signatures unwaive` to undo a waiver." : "not signed."),
+    warning: [
+      "The signature image is removed from these entries and they go back to unsigned.",
+      "This is recorded in your account's audit log."
+    ],
+    prompt: (n) => `Remove the signature from ${plural(n, "entry", "entries")}?`,
+    done: (n) => `Removed the signature from ${plural(n, "entry", "entries")}.`
   });
 }
 

@@ -169,9 +169,9 @@ A token carries up to four scopes:
 - `files`: with `read`, list and download entry files and person photos. With
   `write`, also upload files, attach them to entries, set person photos and
   create upload links.
-- `signatures`: with `write`, attach a signature image, waive and unwaive a
-  signature, and create signing links. It never lets a token read a signature
-  image.
+- `signatures`: download signature images, and with `write`, attach, replace
+  and remove a signature image, waive and unwaive a signature, and create
+  signing links. `jetlog login --scope write` asks for it.
 
 `jetlog login` asks for `read files`, and `jetlog login --scope write` asks
 for `read write files signatures`. A token made before `files` and
@@ -236,7 +236,9 @@ jetlog photos set <person-id> portrait.png
 jetlog photos get <person-id> -o ./portrait.png
 
 jetlog signatures show <entry-id>
+jetlog signatures get <entry-id> -o ./signature.png
 jetlog signatures attach <entry-id> instructor.png
+jetlog signatures remove <entry-id...>
 jetlog signatures waive <entry-id...>
 jetlog signatures unwaive <entry-id...>
 jetlog signatures request <entry-id...>
@@ -263,15 +265,25 @@ replaces the current photo if there is one. `photos get` downloads it.
 ### Signatures
 
 `signatures show` prints the state of an entry (`none`, `waived` or `signed`)
-and the checksum of the signature image. It never prints or downloads the
-image: no token can read a signature image.
+and the checksum of the signature image. `signatures get <entry-id>` downloads
+the image itself. It needs the `signatures` scope, and `files` is not needed.
+It works like `attachments get`: it saves into the current directory, or to
+`-o` (a file or a directory), and never overwrites unless you pass `--force`.
+If the entry is not signed it says so and exits with 1. If the login was made
+without the `signatures` permission it says so and tells you to run
+`jetlog login --scope write` again and keep that permission ticked.
 
 - `signatures attach` sets a PNG (up to 5 MiB and 4096 pixels per side) as the
-  signature of an unsigned or waived entry. Dark ink on a transparent
-  background, about 250 pixels on the long edge, looks best in the app. The
-  change is recorded in your account's audit log and you get a push
-  notification. A token can add a signature, never replace or remove one.
-  Once an entry is signed, only the app can change that.
+  signature of an entry. Dark ink on a transparent background, about 250
+  pixels on the long edge, looks best in the app. On a signed entry it
+  replaces the signature, and the preview then says "Will replace the existing
+  signature with ..." and the prompt asks "Replace the existing signature?".
+  Every change is recorded in your account's audit log and you get a push
+  notification.
+- `signatures remove <entry-id...>` removes the signature image from signed
+  entries. They go back to unsigned. The preview lists each entry with its
+  state, skips entries that are not signed, and says the removal is recorded
+  in your audit log. Confirm, or pass `--yes`.
 - `signatures waive` and `unwaive` mark an unsigned entry as waived and undo
   that. A waiver records the hours as signed in your own totals, an authority
   does not accept it. A real signature can be added later and replaces it.
@@ -284,8 +296,8 @@ image: no token can read a signature image.
 - Bulk entries cannot be signed this way. The commands check the state first
   and skip or refuse what the server would reject.
 
-A signed entry is not locked for tokens: a write token can still edit or
-delete the entry itself. Those writes are recorded in the audit log and
+A signed entry is not locked for tokens: a write token can still replace or
+remove its signature, edit it or delete it. Those writes are recorded in the audit log and
 reported to you by push notification, the same way signature changes are.
 
 ### Limits and retries

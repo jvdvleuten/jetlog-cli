@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import { mkdir, open, realpath, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { attachmentDownloadUrls, getPresigned, type ApiClient, type AttachmentDownloadUrl } from "../api/client.js";
+import { attachmentDownloadUrls, getPresigned, SIGNATURES_SCOPE_MESSAGE, type ApiClient, type AttachmentDownloadUrl } from "../api/client.js";
 import { sanitizeForTerminal } from "../commands/output.js";
 
 const EXTENSIONS: Record<string, { canonical: string; accepted: string[] }> = {
@@ -100,11 +100,11 @@ export async function saveAttachment(meta: AttachmentMeta, bytes: Uint8Array, ta
 
 /**
  * Mints a download URL for one attachment, fetches the bytes and checks them against the stored checksum.
- * Signature images are never served to a token, so that case gets its own message.
+ * A signature image is only served to a token with the `signatures` scope, so a `forbidden` id gets its own message.
  */
 export async function fetchAttachment(client: ApiClient, id: string): Promise<{ meta: AttachmentDownloadUrl; bytes: Buffer }> {
   const result = await attachmentDownloadUrls(client, [id]);
-  if (result.forbidden?.includes(id)) throw new Error("signature images are not available to tokens.");
+  if (result.forbidden?.includes(id)) throw new Error(SIGNATURES_SCOPE_MESSAGE);
   const meta = result.attachments.find((a) => a.id === id);
   if (!meta) {
     if (result.gone?.includes(id)) throw new Error(`attachment ${id} not found.`);

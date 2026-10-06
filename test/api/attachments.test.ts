@@ -378,12 +378,12 @@ describe("applyChanges failures", () => {
   }
 
   it("keeps the per-entry reasons of a 422 signature_rejected", async () => {
-    const body = { error: { code: "signature_rejected", message: "no", errors: [{ id: "e-1", reason: "already_signed" }] } };
+    const body = { error: { code: "signature_rejected", message: "no", errors: [{ id: "e-1", reason: "signature_conflict" }] } };
     const { result } = await applyOnce([jsonHandler(422, body)]);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("signature_rejected");
-      expect(result.message).toContain("already signed");
+      expect(result.message).toContain("signature and a waiver");
     }
   });
 

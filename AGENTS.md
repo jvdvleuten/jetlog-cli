@@ -66,7 +66,9 @@ skipped when there is neither.
   `insufficient_scope` from the server is mapped to the same "log in again"
   text. `download_attachment` writes only into `downloadRoot()`
   (`JETLOG_DOWNLOAD_DIR`, default `~/Downloads/jetlog`) with a generated name
-  and flag `wx`, the model never supplies a path. Writes of signatures,
+  and flag `wx`, the model never supplies a path. A signature image
+  downloads with the `signatures` scope; without it the server answers
+  `forbidden` and the tool says so. Writes of signatures,
   photos, files and signing links go through `propose_changes` and
   `apply_changes`. The only direct writes are `upload_file` (bytes nobody
   references yet) and `create_upload_link`. `test/mcp.test.ts` pins the tool

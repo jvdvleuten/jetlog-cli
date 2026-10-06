@@ -546,6 +546,7 @@ function png(width, height, shade) {
 
 fs.writeFileSync(dir + "/ramp.png", png(8, 8, 40));
 fs.writeFileSync(dir + "/sig-token.png", png(16, 8, 20));
+fs.writeFileSync(dir + "/sig-token-2.png", png(16, 8, 25));
 fs.writeFileSync(dir + "/sig-link.png", png(12, 6, 30));
 fs.writeFileSync(dir + "/photo-1.png", png(10, 10, 60));
 fs.writeFileSync(dir + "/photo-2.png", png(10, 10, 90));
@@ -645,16 +646,52 @@ if ! printf '%s\n' "$REPLACE_OUT" | grep -q "replaces the current photo"; then
   e2e_fail "expected photos set to say it replaces the current photo, got: $REPLACE_OUT"
 fi
 
-echo "--- jetlog signatures: attach (B), waive and unwaive (C), refuse to replace ---"
+echo "--- jetlog signatures: attach, get, replace and remove (B), waive and unwaive (C) ---"
+file_sha256() {
+  shasum -a 256 "$1" | cut -d' ' -f1
+}
 node "$CLI_JS" signatures attach "$ENTRY_B" "$WORK_DIR/sig-token.png" --yes
 expect_state "$ENTRY_B" signed "signatures attach"
 SIG_ATTACHMENT_ID="$(node "$CLI_JS" signatures show "$ENTRY_B" --json | json_get 'd.signature_attachment_id')"
 if [ -z "$SIG_ATTACHMENT_ID" ]; then
   e2e_fail "a signed entry should show its signature_attachment_id"
 fi
-if node "$CLI_JS" signatures attach "$ENTRY_B" "$WORK_DIR/sig-token.png" --yes >/dev/null 2>&1; then
-  e2e_fail "attaching a second signature to a signed entry must fail"
+SIG_SHA_1="$(node "$CLI_JS" signatures show "$ENTRY_B" --json | json_get 'd.signature_sha256')"
+if [ "$SIG_SHA_1" != "$(file_sha256 "$WORK_DIR/sig-token.png")" ]; then
+  e2e_fail "the entry's signature_sha256 should match the uploaded file, got '$SIG_SHA_1'"
 fi
+SIG_GET_OUT="$(node "$CLI_JS" signatures get "$ENTRY_B" -o "$WORK_DIR/sig-downloaded-1.png")"
+if ! cmp -s "$SIG_GET_OUT" "$WORK_DIR/sig-token.png"; then
+  e2e_fail "the downloaded signature differs from the uploaded one"
+fi
+if [ "$(file_sha256 "$SIG_GET_OUT")" != "$SIG_SHA_1" ]; then
+  e2e_fail "the sha256 of the downloaded signature should equal signature_sha256"
+fi
+
+# A second image replaces the signature. The preview says so.
+REPLACE_SIG_OUT="$(node "$CLI_JS" signatures attach "$ENTRY_B" "$WORK_DIR/sig-token-2.png" --yes 2>&1)"
+if ! printf '%s\n' "$REPLACE_SIG_OUT" | grep -q "Will replace the existing signature"; then
+  e2e_fail "expected signatures attach on a signed entry to say it replaces the signature, got: $REPLACE_SIG_OUT"
+fi
+expect_state "$ENTRY_B" signed "replacing the signature"
+SIG_SHA_2="$(node "$CLI_JS" signatures show "$ENTRY_B" --json | json_get 'd.signature_sha256')"
+if [ "$SIG_SHA_2" = "$SIG_SHA_1" ] || [ "$SIG_SHA_2" != "$(file_sha256 "$WORK_DIR/sig-token-2.png")" ]; then
+  e2e_fail "the signature should now be the second image, got sha '$SIG_SHA_2'"
+fi
+node "$CLI_JS" signatures get "$ENTRY_B" -o "$WORK_DIR/sig-downloaded-2.png" >/dev/null
+if ! cmp -s "$WORK_DIR/sig-downloaded-2.png" "$WORK_DIR/sig-token-2.png"; then
+  e2e_fail "the downloaded signature should be the second image after the replace"
+fi
+
+# Remove: the entry goes back to none, and signatures get says it is not signed.
+node "$CLI_JS" signatures remove "$ENTRY_B" --yes
+expect_state "$ENTRY_B" none "signatures remove"
+if node "$CLI_JS" signatures get "$ENTRY_B" -o "$WORK_DIR/sig-none.png" >/dev/null 2>&1; then
+  e2e_fail "signatures get on an unsigned entry must fail"
+fi
+# Sign B again with the first image, so the batch cleanup below still sees a token-signed entry.
+node "$CLI_JS" signatures attach "$ENTRY_B" "$WORK_DIR/sig-token.png" --yes
+expect_state "$ENTRY_B" signed "signing B again"
 node "$CLI_JS" signatures waive "$ENTRY_B" --yes
 expect_state "$ENTRY_B" signed "a waive attempt on a signed entry (it must be skipped)"
 
@@ -664,36 +701,17 @@ node "$CLI_JS" signatures unwaive "$ENTRY_C" --yes
 expect_state "$ENTRY_C" none "signatures unwaive"
 node "$CLI_JS" signatures waive "$ENTRY_C" --yes
 expect_state "$ENTRY_C" waived "a second waive"
-# A real signature replaces the waiver, and the same image may be used on a second entry (it is the token's own).
+# A real signature replaces the waiver, and the same image may be used on a second entry.
 node "$CLI_JS" signatures attach "$ENTRY_C" "$WORK_DIR/sig-token.png" --yes
 expect_state "$ENTRY_C" signed "attaching over a waiver"
 
-echo "--- the server refuses what the CLI would not even send (curl) ---"
 SIG_BODY="$(mktemp -t jetlog_e2e_body)"
 EDIT_BATCH="$(curl -sS -X POST "$BASE_URL/api/import_batches" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"kind":"edit","client":"jetlog-cli","label":"e2e-negative"}' | json_get 'd.id')"
+  -d '{"kind":"edit","client":"jetlog-cli","label":"e2e-reuse"}' | json_get 'd.id')"
 if [ -z "$EDIT_BATCH" ]; then
-  e2e_fail "could not open an edit batch for the negative checks"
-fi
-REMOVE_CODE="$(curl -sS -o "$SIG_BODY" -w '%{http_code}' -X PUT "$BASE_URL/api/entries" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "x-jetlog-batch-id: $EDIT_BATCH" \
-  -d '{"entries":[{"id":"'"$ENTRY_B"'","signature_attachment_id":null}]}')"
-if [ "$REMOVE_CODE" != "422" ] || ! grep -q "signature_removal_not_allowed" "$SIG_BODY"; then
-  e2e_fail "removing a signature should be a 422 signature_removal_not_allowed, got $REMOVE_CODE: $(cat "$SIG_BODY")"
-fi
-SERVED_CODE="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE_URL/api/attachments/$SIG_ATTACHMENT_ID" -H "Authorization: Bearer $TOKEN")"
-if [ "$SERVED_CODE" != "404" ]; then
-  e2e_fail "a token must never be served a signature image (expected 404), got $SERVED_CODE"
-fi
-if SIG_GET_OUT="$(node "$CLI_JS" attachments get "$SIG_ATTACHMENT_ID" -o "$WORK_DIR/sig-leak.png" 2>&1)"; then
-  e2e_fail "attachments get must not download a signature image: $SIG_GET_OUT"
-fi
-if ! printf '%s\n' "$SIG_GET_OUT" | grep -q "signature images are not available"; then
-  e2e_fail "expected 'signature images are not available to tokens', got: $SIG_GET_OUT"
+  e2e_fail "could not open an edit batch for the reuse check"
 fi
 
 echo "--- jetlog signatures request / revoke, then a real signing through the public API (D) ---"
@@ -721,17 +739,21 @@ if [ "$SIGN_CODE" != "200" ] || ! grep -q "$ENTRY_D" "$SIG_BODY"; then
 fi
 expect_state "$ENTRY_D" signed "the public signing"
 
-# A signature captured through a signing link cannot be reused by a token (origin rule): pointing the still unsigned entry A at it fails.
+# A signature captured through a signing link may be reused by a token (any signature image of the user): pointing the
+# still unsigned entry A at it works. It is removed again right after, so the batch cleanup below is unchanged.
 LINK_SIG_ID="$(node "$CLI_JS" signatures show "$ENTRY_D" --json | json_get 'd.signature_attachment_id')"
-ORIGIN_CODE="$(curl -sS -o "$SIG_BODY" -w '%{http_code}' -X PUT "$BASE_URL/api/entries" \
+REUSE_CODE="$(curl -sS -o "$SIG_BODY" -w '%{http_code}' -X PUT "$BASE_URL/api/entries" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -H "x-jetlog-batch-id: $EDIT_BATCH" \
   -d '{"entries":[{"id":"'"$ENTRY_A"'","signature_attachment_id":"'"$LINK_SIG_ID"'"}]}')"
-if [ "$ORIGIN_CODE" != "422" ] || ! grep -q "signature_origin_not_allowed" "$SIG_BODY"; then
-  e2e_fail "reusing a link-signed image should be a 422 signature_origin_not_allowed, got $ORIGIN_CODE: $(cat "$SIG_BODY")"
+if [ "$REUSE_CODE" != "200" ]; then
+  e2e_fail "reusing a link-signed image should be accepted (200), got $REUSE_CODE: $(cat "$SIG_BODY")"
 fi
-expect_state "$ENTRY_A" none "the refused reuse of a link signature"
+expect_state "$ENTRY_A" signed "reusing the link signature"
+node "$CLI_JS" signatures get "$ENTRY_D" -o "$WORK_DIR/sig-link-downloaded.png" >/dev/null
+node "$CLI_JS" signatures remove "$ENTRY_A" --yes
+expect_state "$ENTRY_A" none "removing the reused link signature"
 rm -f "$SIG_BODY" "$LINK_ERR"
 
 echo "--- audit rows and attachment origins (read straight from the scratch database) ---"
@@ -780,15 +802,18 @@ expect_audit_line() {
   fi
 }
 expect_audit_line "AUDIT:entry_attachment:created:2"
-expect_audit_line "AUDIT:entry_signature:signature_attached:2"
+expect_audit_line "AUDIT:entry_signature:signature_attached:4"
+expect_audit_line "AUDIT:entry_signature:signature_replaced:1"
+expect_audit_line "AUDIT:entry_signature:signature_removed:2"
 expect_audit_line "AUDIT:entry_signature:signature_waived:2"
 expect_audit_line "AUDIT:entry_signature:signature_unwaived:1"
 expect_audit_line "AUDIT:entry_signature:signed_via_link:1"
 expect_audit_line "AUDIT:signature_request:created:2"
 expect_audit_line "AUDIT:signature_request:revoked:1"
 expect_audit_line "ATTR:cli|cli:"
-# B and C share one token-origin image (deduped by checksum), D's came through the public signing page.
-expect_audit_line "SIG_ORIGIN:token:1"
+# Token-origin images: the first (B, C, deduped by checksum) and the second one (the replace). D's came through
+# the public signing page.
+expect_audit_line "SIG_ORIGIN:token:2"
 expect_audit_line "SIG_ORIGIN:remote_sign:1"
 
 echo "--- jetlog batches remove: token-signed entries go with the batch, link-signed ones are kept ---"

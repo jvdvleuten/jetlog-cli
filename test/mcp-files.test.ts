@@ -353,13 +353,33 @@ describe("local MCP file tools", () => {
       expect(await readdir(dir)).not.toContain("does-not-exist");
     });
 
-    it("refuses a signature image and writes nothing", async () => {
-      await start([jsonHandler(200, { attachments: [], gone: [], forbidden: ["sig-1"] })]);
+    it("saves a signature image when the login has the signatures scope, without the files scope", async () => {
+      await start([(req, res) => meta("sig-1", PNG, "image/png")(server!.baseUrl)(req, res), bytesHandler(PNG)], "read write signatures");
+      const { client } = await connectedClient();
+      const r = await client.callTool({ name: "download_attachment", arguments: { attachment_id: "sig-1", file_name: "signature" } });
+      expect(r.isError).toBeFalsy();
+      const result = r.structuredContent as { path: string; content_type: string };
+      expect(result.content_type).toBe("image/png");
+      expect((await readFile(result.path)).equals(PNG)).toBe(true);
+    });
+
+    it("explains a signature image the server holds back from a login without the signatures scope, and writes nothing", async () => {
+      await start([jsonHandler(200, { attachments: [], gone: [], forbidden: ["sig-1"] })], "read files");
       const { client } = await connectedClient();
       const r = await client.callTool({ name: "download_attachment", arguments: { attachment_id: "sig-1" } });
       expect(r.isError).toBe(true);
-      expect(text(r)).toContain("signature images are not available to tokens");
+      expect(text(r)).toContain("without the signatures permission");
+      expect(text(r)).toContain("jetlog login");
       await expect(readdir(downloads)).rejects.toThrow();
+    });
+
+    it("refuses before any request when the login has neither the files nor the signatures scope", async () => {
+      const srv = await start([], "read write");
+      const { client } = await connectedClient();
+      const r = await client.callTool({ name: "download_attachment", arguments: { attachment_id: "sig-1" } });
+      expect(r.isError).toBe(true);
+      expect(text(r)).toContain("files scope");
+      expect(srv.requests).toHaveLength(0);
     });
 
     it("rejects bytes that do not match the stored checksum", async () => {

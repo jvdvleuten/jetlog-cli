@@ -184,9 +184,9 @@ describe("attachments commands", () => {
     );
   });
 
-  it("get says signature images are not available to tokens", async () => {
+  it("get says when the login lacks the signatures permission for a forbidden id", async () => {
     await withServer([jsonHandler(200, { attachments: [], gone: [], forbidden: ["sig1"] })], async () => {
-      await expect(attachmentsGet({ profile: "default", attachmentId: "sig1" })).rejects.toThrow("signature images are not available to tokens.");
+      await expect(attachmentsGet({ profile: "default", attachmentId: "sig1" })).rejects.toThrow(/without the signatures permission/);
     });
   });
 
