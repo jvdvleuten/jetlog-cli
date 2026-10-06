@@ -178,6 +178,70 @@ describe("file totals without airport data", () => {
   });
 });
 
+/** A deeplink-json file with several flights, one per (from, to, date) tuple. */
+function multiFile(rows: [string, string, string][]): string {
+  return JSON.stringify({
+    entries: rows.map(([from, to, date]) => ({
+      date,
+      type: "flight",
+      from,
+      to,
+      flight_number: "KL123",
+      off_blocks: "15:30",
+      on_blocks: "17:00",
+      people: [{ ref_id: "SELF", role: "PIC" }]
+    }))
+  });
+}
+
+describe("unresolved airports", () => {
+  afterEach(() => setActiveAirportIndex(undefined));
+
+  it("counts every entry with codes under an empty index and emits only the no-data note", async () => {
+    const totals = await computeFileTotals("deeplink-json", multiFile([["EHAM", "EGLL", "2024-12-15"], ["EHAM", "ZZZZ", "2024-12-16"]]));
+    expect(totals.unresolvedAirports.entryCount).toBe(2);
+    expect(totals.entryTimesResult.notes).toEqual([NO_AIRPORT_DATA_NOTE]);
+  });
+
+  it("flags only the entry with an unknown code and still computes night for the rest", async () => {
+    setActiveAirportIndex(testIndex());
+    const totals = await computeFileTotals("deeplink-json", multiFile([["EHAM", "EGLL", "2024-12-15"], ["EHAM", "zzzz", "2024-12-16"]]));
+    expect(totals.unresolvedAirports).toEqual({ entryCount: 1, codes: ["ZZZZ"] });
+    expect(totals.totalNightMinutes).toBeGreaterThan(0);
+    const [ok, bad] = totals.entryTimesResult.calculated;
+    expect(ok!.unresolvedAirports).toBeUndefined();
+    expect(ok!.night).toBeGreaterThan(0);
+    expect(bad!.unresolvedAirports).toEqual(["ZZZZ"]);
+    expect(totals.entryTimesResult.notes).toEqual([
+      "note: 1 of 2 entries uses an airport that is not in your Jetlog airport catalog (ZZZZ), so night time and distance-based figures are not computed for them."
+    ]);
+  });
+
+  it("reports nothing when everything resolves", async () => {
+    setActiveAirportIndex(testIndex());
+    const totals = await computeFileTotals("deeplink-json", multiFile([["EHAM", "EGLL", "2024-12-15"]]));
+    expect(totals.unresolvedAirports).toEqual({ entryCount: 0, codes: [] });
+    expect(totals.entryTimesResult.notes).toEqual([]);
+  });
+
+  it("does not count an unresolved entry outside the period", async () => {
+    setActiveAirportIndex(testIndex());
+    const content = multiFile([["EHAM", "EGLL", "2024-12-15"], ["EHAM", "ZZZZ", "2023-01-05"]]);
+    const totals = await computeFileTotals("deeplink-json", content, undefined, { period: { from: "2024-01-01", to: "2024-12-31" } });
+    expect(totals.unresolvedAirports).toEqual({ entryCount: 0, codes: [] });
+    expect(totals.entryTimesResult.notes).toEqual([]);
+  });
+
+  it("uses plural grammar and truncates the code list after 8", async () => {
+    setActiveAirportIndex(testIndex());
+    const rows: [string, string, string][] = Array.from({ length: 10 }, (_, i) => ["EHAM", `ZZ${String.fromCharCode(65 + i)}${i}`, "2024-12-15"]);
+    const totals = await computeFileTotals("deeplink-json", multiFile(rows));
+    expect(totals.unresolvedAirports.entryCount).toBe(10);
+    expect(totals.entryTimesResult.notes[0]).toContain("10 of 10 entries use an airport");
+    expect(totals.entryTimesResult.notes[0]).toContain("and 2 more)");
+  });
+});
+
 describe("computeProfileTotals with the logged-in airport catalog", () => {
   let dir: string;
   let server: TestServer | undefined;

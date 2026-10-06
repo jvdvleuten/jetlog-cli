@@ -309,7 +309,8 @@ export async function createMcpServer(): Promise<McpServer> {
         "taxi time, and ATPL CRCP/FNPT/synthetic credit caps. Entries with no resolvable self " +
         "person are skipped (reported in the output). Night time and distance-based figures need airport " +
         "positions, which only come from a logged-in Jetlog account: without a login the result carries a " +
-        "note saying they were not computed, and the assistant must say so rather than report them as zero.",
+        "note saying they were not computed, and the assistant must say so rather than report them as zero. " +
+        "Check `totals.unresolvedAirports.entryCount`: when above zero, some entries use an airport that is not in the catalog, and the assistant must tell the pilot that night time and distance figures are missing for them.",
       inputSchema: {
         path: z.string().optional().describe("Absolute path to the file to convert and total up. Omit to use the logged-in user's own Jetlog data."),
         format: z

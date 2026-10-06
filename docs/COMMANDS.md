@@ -240,6 +240,9 @@ jetlog totals logbook.csv --from csv --self-role PIC --json   # minutes
 For a file, night time and distance-based figures need a login for airport
 positions. Without one they are not computed and a `note:` line on stderr
 says so. Do not read the night total as zero hours flown at night.
+With `--json`, `unresolvedAirports.entryCount` tells how many entries use an
+airport that could not be placed, and `codes` lists them. When it is above
+zero a `note:` line on stderr says the same.
 
 Without a file argument the totals come from your logged-in account. That
 path also classifies aircraft (single/multi engine, multi pilot), which a

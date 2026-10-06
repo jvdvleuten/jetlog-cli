@@ -6,13 +6,14 @@
 import { formatNotices } from "../import/warnings.js";
 import { convertFile, type ConvertFormat } from "../convert/index.js";
 import { validatePayload } from "../schema.js";
+import { normalize } from "../airports/resolver.js";
 import { getActiveAirportIndex, getEmptyAirportIndex, isEmptyAirportIndex, loadLoggedInAirportIndex, resolve, type AirportIndex } from "../airports/index.js";
 import { payloadEntryToCalcEntry } from "./adapter.js";
 import { importedEntryToCalcEntry } from "./importedEntryAdapter.js";
 import { apiEntryToCalcEntry } from "./apiAdapter.js";
 import { buildApiAircraftLookup } from "./apiAircraft.js";
 import { calculateEntryTimes, derivedDate, derivedRoute } from "./calculator.js";
-import type { Period } from "./period.js";
+import { inPeriod, type Period } from "./period.js";
 import { aggregateTotals, applyAtplCaps, type AtplCaps, type EntryTimesForTotals, type Totals } from "./aggregator.js";
 import type { Airport, AircraftTypeInfo, CalcContext } from "./types.js";
 import type { ApiClient, MeResponse, EntriesPage } from "../api/client.js";
@@ -55,10 +56,52 @@ export interface FileEntryTimesResult {
 export const NO_AIRPORT_DATA_NOTE =
   "note: no airport data without a login, so night time and distance-based figures are not computed. Run `jetlog login` to use your Jetlog airport catalog.";
 
-/** `[NO_AIRPORT_DATA_NOTE]` when `index` (default: the active one) is empty and some entry has a from/to code. */
-function airportDataNotes(calculated: readonly EntryTimesForTotals[], index?: AirportIndex): string[] {
-  if (!isEmptyAirportIndex(index ?? getActiveAirportIndex())) return [];
-  return calculated.some((e) => e.fromIcao || e.toIcao) ? [NO_AIRPORT_DATA_NOTE] : [];
+/** Totals-level summary of entries with an airport that could not be placed. */
+export interface UnresolvedAirportsSummary {
+  entryCount: number;
+  codes: string[];
+}
+
+/** `entry` plus `unresolvedAirports` (only when non-empty): the from/to codes the calculation's own
+ * lookup could not place (not found, or no position). Simulator entries and entries without codes never count. */
+function withUnresolved(entry: EntryTimesForTotals, lookupAirport: (code: string) => Airport | undefined): EntryTimesForTotals {
+  if (entry.type === "fstd") return entry;
+  const codes: string[] = [];
+  for (const raw of [entry.fromIcao, entry.toIcao]) {
+    const code = normalize(raw);
+    if (code === null || codes.includes(code)) continue;
+    const airport = lookupAirport(raw as string);
+    if (!airport || !airport.hasPosition) codes.push(code);
+  }
+  return codes.length > 0 ? { ...entry, unresolvedAirports: codes } : entry;
+}
+
+/** The entries `aggregateTotals` counts for `period`: same inclusion rule and period predicate. */
+function entriesInScope(calculated: readonly EntryTimesForTotals[], period?: Period): EntryTimesForTotals[] {
+  return calculated.filter(
+    (e) => (e.type === "fstd" || e.detailedTimes.totalTimeOfFlight !== undefined) && (period === undefined || inPeriod(e.date, period))
+  );
+}
+
+function summarizeUnresolved(scope: readonly EntryTimesForTotals[]): UnresolvedAirportsSummary {
+  const withCodes = scope.filter((e) => e.unresolvedAirports && e.unresolvedAirports.length > 0);
+  const codes = [...new Set(withCodes.flatMap((e) => e.unresolvedAirports!))].sort();
+  return { entryCount: withCodes.length, codes };
+}
+
+/** At most one stderr note: no airport data at all, or entries with an airport missing from the catalog. */
+function airportDataNotes(calculated: readonly EntryTimesForTotals[], index?: AirportIndex, period?: Period): string[] {
+  if (isEmptyAirportIndex(index ?? getActiveAirportIndex())) {
+    return calculated.some((e) => e.fromIcao || e.toIcao) ? [NO_AIRPORT_DATA_NOTE] : [];
+  }
+  const scope = entriesInScope(calculated, period);
+  const { entryCount, codes } = summarizeUnresolved(scope);
+  if (entryCount === 0) return [];
+  const shown = codes.slice(0, 8).join(", ");
+  const list = codes.length > 8 ? `${shown} and ${codes.length - 8} more` : shown;
+  return [
+    `note: ${entryCount} of ${scope.length} ${entryCount === 1 ? "entries uses an airport that is" : "entries use an airport that is"} not in your Jetlog airport catalog (${list}), so night time and distance-based figures are not computed for them.`
+  ];
 }
 
 /**
@@ -106,7 +149,7 @@ export async function computeFileEntryTimes(
         lookupAircraftType: noAircraftTypeLookup
       };
       const calculatedTimes = calculateEntryTimes(adapted.calcEntry, ctx);
-      calculated.push({
+      calculated.push(withUnresolved({
         ...calculatedTimes,
         type: adapted.calcEntry.type,
         isBulk: entry.isBulk,
@@ -114,7 +157,7 @@ export async function computeFileEntryTimes(
         fstdDeviceCategory: entry.fstdDeviceCategory,
         date: derivedDate(adapted.calcEntry),
         ...routeCodes(adapted.calcEntry)
-      });
+      }, lookupAirport));
     }
   } else {
     const validated = validatePayload(result.payload);
@@ -137,14 +180,14 @@ export async function computeFileEntryTimes(
         lookupAircraftType: noAircraftTypeLookup
       };
       const calculatedTimes = calculateEntryTimes(adapted.calcEntry, ctx);
-      calculated.push({
+      calculated.push(withUnresolved({
         ...calculatedTimes,
         type: adapted.calcEntry.type,
         isBulk: adapted.calcEntry.isBulk,
         selfRole: adapted.selfRole,
         date: derivedDate(adapted.calcEntry),
         ...routeCodes(adapted.calcEntry)
-      });
+      }, lookupAirport));
     }
   }
 
@@ -156,11 +199,13 @@ export async function computeFileTotals(
   content: string,
   filename?: string,
   opts: { period?: Period } & FileSelfOptions = {}
-): Promise<Totals & { atplCaps: AtplCaps; entryTimesResult: FileEntryTimesResult }> {
+): Promise<Totals & { atplCaps: AtplCaps; unresolvedAirports: UnresolvedAirportsSummary; entryTimesResult: FileEntryTimesResult }> {
   const entryTimesResult = await computeFileEntryTimes(format, content, filename, { selfRole: opts.selfRole, selfName: opts.selfName });
   const totals = aggregateTotals(entryTimesResult.calculated, { lookupAirport: makeLookupAirport(), period: opts.period });
   const atplCaps = applyAtplCaps(totals);
-  return { ...totals, atplCaps, entryTimesResult };
+  const unresolvedAirports = summarizeUnresolved(entriesInScope(entryTimesResult.calculated, opts.period));
+  const notes = airportDataNotes(entryTimesResult.calculated, undefined, opts.period);
+  return { ...totals, atplCaps, unresolvedAirports, entryTimesResult: { ...entryTimesResult, notes } };
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +239,7 @@ async function fetchAllOwnEntries(client: ApiClient): Promise<Record<string, unk
 
 export interface ProfileTotalsResult extends Totals {
   atplCaps: AtplCaps;
+  unresolvedAirports: UnresolvedAirportsSummary;
   skippedNoSelfPersonCount: number;
   notes: string[];
 }
@@ -235,17 +281,18 @@ export async function computeProfileTotals(
       ...aircraftLookups
     };
     const calculatedTimes = calculateEntryTimes(adapted.calcEntry, ctx);
-    calculated.push({
+    calculated.push(withUnresolved({
       ...calculatedTimes,
       type: adapted.calcEntry.type,
       isBulk: adapted.calcEntry.isBulk,
       selfRole: adapted.selfRole,
       date: derivedDate(adapted.calcEntry),
       ...routeCodes(adapted.calcEntry)
-    });
+    }, lookupAirport));
   }
 
   const totals = aggregateTotals(calculated, { lookupAirport, period: opts.period });
   const atplCaps = applyAtplCaps(totals);
-  return { ...totals, atplCaps, skippedNoSelfPersonCount, notes: airportDataNotes(calculated, index) };
+  const unresolvedAirports = summarizeUnresolved(entriesInScope(calculated, opts.period));
+  return { ...totals, atplCaps, unresolvedAirports, skippedNoSelfPersonCount, notes: airportDataNotes(calculated, index, opts.period) };
 }

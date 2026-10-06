@@ -49,6 +49,9 @@ export interface EntryTimesForTotals {
    * may hold an IATA code or a user place code. */
   fromIcao?: string;
   toIcao?: string;
+  /** Codes (normalized) of this entry's from/to airports that the lookup could not place (not found,
+   * or no position). Present only when non-empty. Not used by `aggregateTotals`. */
+  unresolvedAirports?: string[];
 }
 
 export interface Totals {

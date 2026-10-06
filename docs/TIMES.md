@@ -147,8 +147,15 @@ role-code tables and file glue have their own unit tests in `test/times/`.
   night time and cross-country by distance are not computed. `times` and
   `totals` on a file print one `note:` line on stderr, and the `compute_totals`
   MCP tool returns it in `notes`. The night column is blank in the table and
-  the totals summary has no Night line. In `--json` output the night total is
-  0, which means "not computed" there.
+  the totals summary has no Night line.
+- An entry with an airport that is not in your catalog (or has no position)
+  gets no night time and no distance figure. `times --json` lists such codes
+  per entry in `unresolvedAirports`. `totals --json` always has an
+  `unresolvedAirports` object with `entryCount` and the sorted `codes`, for
+  the entries in the period. Check `entryCount` before you trust the night
+  total, because the total is the sum of what could be computed. One `note:`
+  line on stderr names the codes. Without any airport data the first note
+  above is used instead.
   Importers also no longer turn an IATA code into ICAO without a login.
 - A tracked entry (`update_flight_data`) logs its whole block as IFR even when
   its `ifr` flag is false. This follows the app.
