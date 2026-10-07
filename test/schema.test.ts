@@ -48,6 +48,15 @@ describe("payloadSchema", () => {
     expect(result.valid).toBe(true);
   });
 
+  it("accepts cargo_on_board as a non-negative integer or null, rejects negatives", () => {
+    const ok = (v: unknown) =>
+      validatePayload({ entries: [{ date: "2026-01-05", cargo_on_board: v }], people: [] }).valid;
+    expect(ok(1200)).toBe(true);
+    expect(ok(null)).toBe(true);
+    expect(ok(-1)).toBe(false);
+    expect(ok(1.5)).toBe(false);
+  });
+
   it("rejects remarks over 1000 characters", () => {
     const result = validatePayload({
       entries: [{ date: "2026-01-05", remarks: "a".repeat(1001) }],

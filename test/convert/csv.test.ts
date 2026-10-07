@@ -60,6 +60,11 @@ describe("convertGenericCsv", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("maps a cargo column to cargo_on_board", () => {
+    const { payload } = convertGenericCsv("Date,From,To,Cargo kg\n2026-01-05,EHAM,EGLL,1200\n");
+    expect(payload.entries![0]!.cargo_on_board).toBe(1200);
+  });
+
   it("applies --self-role to every entry", () => {
     const { payload } = convertGenericCsv(fixture, { selfRole: "PIC" });
     for (const entry of payload.entries!) {

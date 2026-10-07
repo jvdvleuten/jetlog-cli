@@ -21,8 +21,8 @@ Jetlog import payload rules:
   whichever shape your source data provides, with both counts of that shape.
 - approaches is a list of { type, count }, type one of: ils_cat1, ils_cat2,
   ils_cat3, gls, rnp, rnp_ar, loc, vor, ndb, visual, circling, par. count >= 1.
-- go_arounds, passengers_on_board, fuel_planned, fuel_used are integers >= 0.
-  fuel is always in kilograms.
+- go_arounds, passengers_on_board, fuel_planned, fuel_used, cargo_on_board are integers >= 0.
+  fuel and cargo are always in kilograms.
 - remarks is free text, max 1000 characters.
 - Never invent data that isn't in the source. Leave a field out if you don't
   know it; do not guess times, registrations or routes.

@@ -349,6 +349,8 @@ export function mergeImported(
   if (fuelPlanned !== undefined) fields.fuel_planned = fuelPlanned;
   const fuelUsed = apply(imported.fuelUsed, existing?.fuel_used as number | undefined, conservative);
   if (fuelUsed !== undefined) fields.fuel_used = fuelUsed;
+  const cargoOnBoard = apply(imported.cargoOnBoard, existing?.cargo_on_board as number | undefined, conservative);
+  if (cargoOnBoard !== undefined) fields.cargo_on_board = cargoOnBoard;
 
   const resolvedRemarksValue = resolvedRemarks(imported, (existing?.remarks as string | null | undefined) ?? undefined);
   const remarks = apply(resolvedRemarksValue, (existing?.remarks as string | undefined) ?? undefined, conservative);

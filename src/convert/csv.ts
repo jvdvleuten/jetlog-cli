@@ -39,7 +39,8 @@ export const HEADER_ALIASES: Record<string, string[]> = {
   go_arounds: ["go arounds", "go-arounds", "goarounds"],
   passengers_on_board: ["passengers", "pax", "passengers on board"],
   fuel_planned: ["fuel planned", "planned fuel"],
-  fuel_used: ["fuel used", "used fuel", "fuel burn"]
+  fuel_used: ["fuel used", "used fuel", "fuel burn"],
+  cargo_on_board: ["cargo", "cargo on board", "cargo kg", "freight"]
 };
 
 function normalizeHeader(header: string): string {
@@ -228,6 +229,9 @@ export function convertGenericCsv(content: string, options: GenericCsvOptions = 
 
     const fuelUsed = getField(record, headerMap, "fuel_used");
     if (fuelUsed) entry.fuel_used = toInt(fuelUsed);
+
+    const cargo = getField(record, headerMap, "cargo_on_board");
+    if (cargo) entry.cargo_on_board = toInt(cargo);
 
     if (selfRole) {
       entry.people = [{ ref_id: "SELF", role: selfRole }];

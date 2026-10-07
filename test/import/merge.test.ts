@@ -33,6 +33,11 @@ describe("mergeImported: new entry", () => {
     expect(merged.fields.off_blocks).toBe("10:00");
     expect(merged.fields.is_deleted).toBe(false);
   });
+
+  it("carries cargoOnBoard as cargo_on_board", () => {
+    const merged = mergeImported(flight({ cargoOnBoard: 1200 }), undefined, false, new Map());
+    expect(merged.fields.cargo_on_board).toBe(1200);
+  });
 });
 
 describe("mergeImported: matched entry", () => {

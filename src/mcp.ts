@@ -996,7 +996,7 @@ export async function createMcpServer(): Promise<McpServer> {
           "scheduled_off_blocks/off_blocks/airborne/touchdown/on_blocks/start_time/end_time (time-of-day " +
           "\"HH:MM\" or \"HH:MM:SS\", zulu), actual_from, actual_to, ifr, is_completed, people " +
           "(array of {person_id, role}; person_id \"SELF\" means the pilot), takeoffs_and_landings, approaches, go_arounds, " +
-          "passengers_on_board, fuel_planned, fuel_used, remarks, is_bulk, manual_times, fstd_id, " +
+          "passengers_on_board, fuel_planned, fuel_used, cargo_on_board, remarks, is_bulk, manual_times, fstd_id, " +
           "session_type, fstd_takeoffs, fstd_landings, aircraft_icao_code, update_flight_data, is_deleted.\n" +
           "  update_flight_data: on a flight CREATE with any actual time (off_blocks/airborne/touchdown/" +
           "on_blocks) the server sets it to false (manual times) so those times show up in the app; set it " +

@@ -110,6 +110,7 @@ export const entrySchema = z
     passengers_on_board: clearableInt.optional(),
     fuel_planned: clearableInt.optional(),
     fuel_used: clearableInt.optional(),
+    cargo_on_board: clearableInt.optional(),
     remarks: z.string().max(1000).nullish(),
     is_deleted: z.boolean().nullish(),
     update_flight_data: z.boolean().nullish()

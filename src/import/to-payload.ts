@@ -51,6 +51,7 @@ function entryToPayloadInput(entry: ImportedEntry, dropped: { count: number }): 
   if (entry.passengersOnBoard !== undefined) out.passengers_on_board = entry.passengersOnBoard;
   if (entry.fuelPlanned !== undefined) out.fuel_planned = entry.fuelPlanned;
   if (entry.fuelUsed !== undefined) out.fuel_used = entry.fuelUsed;
+  if (entry.cargoOnBoard !== undefined) out.cargo_on_board = entry.cargoOnBoard;
   if (entry.takeoffsAndLandings) {
     out.takeoffs_and_landings =
       entry.takeoffsAndLandings.type === "auto"

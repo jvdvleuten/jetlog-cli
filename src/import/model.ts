@@ -417,6 +417,7 @@ export interface ImportedEntry {
   passengersOnBoard?: number;
   fuelPlanned?: number;
   fuelUsed?: number;
+  cargoOnBoard?: number;
   /** `false`/`undefined` here always means "manual, local data" (no live
    * flight-data tracking exists offline) unless an importer has a real
    * roster/auto-track signal, see `updateFlightDataIsNonIntentDefault`. */

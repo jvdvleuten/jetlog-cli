@@ -184,6 +184,7 @@ interface JSONEntry {
   passengers_on_board?: number | null;
   fuel_planned?: number | null;
   fuel_used?: number | null;
+  cargo_on_board?: number | null;
   remarks?: string | null;
   is_deleted?: boolean | null;
 }
@@ -440,6 +441,7 @@ function parse(input: Buffer | string): ImportResult {
       passengersOnBoard: jsonEntry.passengers_on_board ?? undefined,
       fuelPlanned: jsonEntry.fuel_planned ?? undefined,
       fuelUsed: jsonEntry.fuel_used ?? undefined,
+      cargoOnBoard: jsonEntry.cargo_on_board ?? undefined,
       isImportedFromOtherLogbook: false,
       crew,
       isDeleted: jsonEntry.is_deleted ?? undefined

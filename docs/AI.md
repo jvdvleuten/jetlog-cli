@@ -172,7 +172,7 @@ Data rules:
 - Never invent data. If a time, registration, airport or crew member is not
   in the source, leave the field out and say so.
 - Dates are `YYYY-MM-DD`. Times are `HH:MM` in UTC, relative to the entry's
-  date. Airports are ICAO codes when known. Fuel is in kilograms.
+  date. Airports are ICAO codes when known. Fuel and cargo are in kilograms.
 - The pilot is `ref_id` `SELF` in an import payload and `person_id` `SELF` in
   a proposed change. Do not add the pilot to the people list.
 - Read `jetlog://format-rules` or call `get_import_schema` before you build a
