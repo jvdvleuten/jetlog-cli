@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { saveProfile } from "../../src/auth/credentials.js";
 import {
+  MAX_ATTACH_PER_RUN,
+  decideAttachMany,
   signaturesAttach,
+  signaturesAttachMany,
   signaturesGet,
   signaturesRemove,
   signaturesRequest,
@@ -166,6 +169,154 @@ describe("signatures commands", () => {
     await withServer([], async (server) => {
       await expect(signaturesAttach({ ...common, entryId: "e1", image: txt, yes: true })).rejects.toThrow(/supported file type/);
       expect(server.requests).toHaveLength(0);
+    });
+  });
+
+  describe("attach-many", () => {
+    const uploadHandlers = (id: string, getServer: () => TestServer): Handler[] => [
+      (_req, res) => {
+        res.writeHead(201, { "content-type": "application/json" });
+        res.end(JSON.stringify({ id, status: "pending", upload: { url: `${getServer().baseUrl}/bucket/${id}`, headers: { "content-type": "image/png", "content-length": String(PNG.length) } } }));
+      },
+      (_req, res) => res.writeHead(200).end(),
+      jsonHandler(200, { id, status: "stored" })
+    ];
+
+    async function writeList(items: unknown, name = "list.json"): Promise<string> {
+      const path = join(dir, "files", name);
+      await writeFile(path, typeof items === "string" ? items : JSON.stringify(items));
+      return path;
+    }
+
+    it("uploads every file, then sends one batch and one PUT with all rows", async () => {
+      await writeFile(join(dir, "files", "a.png"), PNG);
+      await writeFile(join(dir, "files", "b.png"), PNG);
+      const list = await writeList([
+        { entry_id: "e1", file: "a.png", note: "ignored" },
+        { entry_id: "e2", file: "b.png" }
+      ]);
+      let server!: TestServer;
+      await withServer(
+        [
+          jsonHandler(200, entry("e1")),
+          jsonHandler(200, entry("e2", { signature: "waived" })),
+          jsonHandler(201, { id: "batch-1" }),
+          ...uploadHandlers("att-1", () => server),
+          ...uploadHandlers("att-2", () => server),
+          jsonHandler(200, { entries: [{ id: "e1" }, { id: "e2" }] })
+        ],
+        async (s) => {
+          server = s;
+          await signaturesAttachMany({ ...common, list, yes: true });
+          expect(server.requests.map((r) => `${r.method} ${r.path}`)).toEqual([
+            "GET /api/cli/v1/entries/e1",
+            "GET /api/cli/v1/entries/e2",
+            "POST /api/import_batches",
+            "POST /api/attachments",
+            "PUT /bucket/att-1",
+            "POST /api/attachments/att-1/confirm",
+            "POST /api/attachments",
+            "PUT /bucket/att-2",
+            "POST /api/attachments/att-2/confirm",
+            "PUT /api/entries"
+          ]);
+          expect(server.requests[2]!.body).toMatchObject({ kind: "edit", client: "jetlog-cli", label: "signatures attach-many 2" });
+          const put = server.requests[9]!;
+          expect(put.headers["x-jetlog-batch-id"]).toBe("batch-1");
+          expect(put.body).toEqual({
+            entries: [
+              { id: "e1", signature_attachment_id: "att-1" },
+              { id: "e2", signature_attachment_id: "att-2" }
+            ]
+          });
+          const text = err.join("\n");
+          expect(text).toContain("signature: none. Will attach a.png (image/png,");
+          expect(text).toContain("signature: waived. Will attach b.png (image/png, 14 B). The waiver is replaced by the signature.");
+          expect(text).toContain("Attached 2 signatures.");
+          expect(text).not.toContain("Uploaded");
+        }
+      );
+    });
+
+    it("skips signed and bulk entries, and writes a signed one only with --replace", async () => {
+      await writeFile(join(dir, "files", "a.png"), PNG);
+      const list = await writeList([
+        { entry_id: "e1", file: "a.png" },
+        { entry_id: "e2", file: "a.png" }
+      ]);
+      const loaded = [jsonHandler(200, entry("e1", { signature: "signed" })), jsonHandler(200, entry("e2", { is_bulk: true }))];
+
+      await withServer(loaded, async (server) => {
+        await signaturesAttachMany({ ...common, list, yes: true });
+        expect(server.requests).toHaveLength(2);
+        const text = err.join("\n");
+        expect(text).toContain("already signed. Pass --replace to replace the signature.");
+        expect(text).toContain("bulk entries cannot be signed.");
+        expect(text).toContain("nothing to do.");
+      });
+
+      err.length = 0;
+      let server!: TestServer;
+      await withServer(
+        [...loaded, jsonHandler(201, { id: "batch-1" }), ...uploadHandlers("att-1", () => server), jsonHandler(200, { entries: [{ id: "e1" }] })],
+        async (s) => {
+          server = s;
+          await signaturesAttachMany({ ...common, list, replace: true, yes: true });
+          const put = server.requests.at(-1)!;
+          expect(put.path).toBe("/api/entries");
+          expect(put.body).toEqual({ entries: [{ id: "e1", signature_attachment_id: "att-1" }] });
+          const text = err.join("\n");
+          expect(text).toContain("signature: signed. Will replace the existing signature with a.png");
+          expect(text).toContain("bulk entries cannot be signed.");
+          expect(text).toContain("Attached 1 signature. 1 replaced an existing signature.");
+        }
+      );
+    });
+
+    it("fails on a bad list or file before any request", async () => {
+      await writeFile(join(dir, "files", "a.png"), PNG);
+      await writeFile(join(dir, "files", "a.txt"), "hello");
+      await withServer([], async (server) => {
+        const run = (items: unknown) => writeList(items).then((list) => signaturesAttachMany({ ...common, list, yes: true }));
+        await expect(run("not json")).rejects.toThrow(/not valid JSON/);
+        await expect(run([])).rejects.toThrow(/at least one/);
+        await expect(run([{ entry_id: "e1", file: "a.png" }, { entry_id: "e1", file: "a.png" }])).rejects.toThrow("entry e1 is listed more than once.");
+        await expect(run([{ entry_id: "e1", file: "a.png" }, { entry_id: "e2" }])).rejects.toThrow(/item 2/);
+        await expect(run([{ entry_id: "e1", file: "a.txt" }])).rejects.toThrow(/supported file type/);
+        await expect(signaturesAttachMany({ ...common, list: join(dir, "files", "missing.json"), yes: true })).rejects.toThrow(/cannot read/);
+        expect(server.requests).toHaveLength(0);
+      });
+    });
+
+    it("decides in list order and defers what is over the cap", () => {
+      const item = (id: string) => ({ item: { entryId: id, file: `${id}.png` } });
+      const result = decideAttachMany(
+        [
+          { ...item("a"), entry: { signature: "none", is_bulk: false } },
+          { ...item("b"), entry: { signature: "signed", is_bulk: false } },
+          { ...item("c"), entry: { signature: "waived", is_bulk: false } },
+          { ...item("d"), entry: { signature: "none", is_bulk: false } },
+          { ...item("e"), entry: { signature: "none", is_bulk: true } },
+          { ...item("f"), entry: { signature: "none", is_bulk: false } }
+        ],
+        false,
+        2
+      );
+      expect(result.todo.map((t) => t.item.entryId)).toEqual(["a", "c"]);
+      expect(result.todo.map((t) => t.waived)).toEqual([false, true]);
+      expect(result.deferred.map((t) => t.item.entryId)).toEqual(["d", "f"]);
+      expect(result.skipped.map((t) => t.item.entryId)).toEqual(["b", "e"]);
+      expect(MAX_ATTACH_PER_RUN).toBe(200);
+    });
+
+    it("prints nothing to do and writes nothing when no entry qualifies", async () => {
+      await writeFile(join(dir, "files", "a.png"), PNG);
+      const list = await writeList([{ entry_id: "e1", file: "a.png" }]);
+      await withServer([jsonHandler(200, entry("e1", { signature: "signed" }))], async (server) => {
+        await signaturesAttachMany({ ...common, list });
+        expect(err.join("\n")).toContain("nothing to do.");
+        expect(server.requests.map((r) => r.method)).toEqual(["GET"]);
+      });
     });
   });
 

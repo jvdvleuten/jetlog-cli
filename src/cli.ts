@@ -24,6 +24,7 @@ import { attachmentsAdd, attachmentsGet, attachmentsList, attachmentsRemove } fr
 import { photosGet, photosSet } from "./commands/photos.js";
 import {
   signaturesAttach,
+  signaturesAttachMany,
   signaturesGet,
   signaturesRemove,
   signaturesRequest,
@@ -872,6 +873,18 @@ signatures
   .option("--base-url <url>", "override API base URL (for local dev)")
   .action(async (entryId: string, image: string, opts: { yes?: boolean; profile: string; baseUrl?: string }) => {
     await runReadCommand(() => signaturesAttach({ profile: opts.profile, baseUrl: opts.baseUrl, entryId, image, yes: opts.yes }));
+  });
+
+signatures
+  .command("attach-many")
+  .description("Attach signature images to many entries in one write (one line in `jetlog batches list`, one notification)")
+  .argument("<list>", 'JSON file: an array of { "entry_id": "...", "file": "signature.png" }, relative paths are read from the list\'s folder')
+  .option("--replace", "replace the signature of entries that are already signed (they are skipped otherwise)")
+  .option("--yes", "skip the confirmation prompt")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .action(async (list: string, opts: { replace?: boolean; yes?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => signaturesAttachMany({ profile: opts.profile, baseUrl: opts.baseUrl, list, replace: opts.replace, yes: opts.yes }));
   });
 
 signatures

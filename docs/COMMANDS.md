@@ -238,6 +238,7 @@ jetlog photos get <person-id> -o ./portrait.png
 jetlog signatures show <entry-id>
 jetlog signatures get <entry-id> -o ./signature.png
 jetlog signatures attach <entry-id> instructor.png
+jetlog signatures attach-many <list.json> [--replace]
 jetlog signatures remove <entry-id...>
 jetlog signatures waive <entry-id...>
 jetlog signatures unwaive <entry-id...>
@@ -280,6 +281,27 @@ without the `signatures` permission it says so and tells you to run
   signature with ..." and the prompt asks "Replace the existing signature?".
   Every change is recorded in your account's audit log and you get a push
   notification.
+- `signatures attach-many <list.json>` attaches signature images to many
+  entries in one write. The list is a JSON array, other keys in an item are
+  ignored:
+
+  ```json
+  [
+    { "entry_id": "<id>", "file": "signatures/2026-03-14_EHAM-EGLL.png" }
+  ]
+  ```
+
+  A relative `file` is read relative to the folder the list is in. Entries that
+  are already signed are skipped unless you pass `--replace`, and bulk entries
+  are always skipped. The preview lists every entry, then you confirm (or pass
+  `--yes`). One run is one write, so it is one line in `jetlog batches list`
+  and one notification, however many signatures it carries. The server allows
+  200 signature changes per hour, so one run attaches at most 200. When the list
+  is longer, the first 200 are attached and the command says so; run the same
+  command again an hour later, entries that are signed by then are skipped.
+  The hourly limit counts for the write as a whole: when it does not leave
+  room for all of them, nothing is attached and the command says when to try
+  again.
 - `signatures remove <entry-id...>` removes the signature image from signed
   entries. They go back to unsigned. The preview lists each entry with its
   state, skips entries that are not signed, and says the removal is recorded

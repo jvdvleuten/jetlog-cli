@@ -93,7 +93,7 @@ confirm step works, and a short guide written for the assistant itself.
 | `jetlog signatures get` | Download the signature image of a signed entry | read, signatures |
 | `jetlog attachments add`, `remove` | Add files to an entry, remove one | write, files |
 | `jetlog photos set` | Set a person's photo | write, files |
-| `jetlog signatures attach`, `remove`, `waive`, `unwaive`, `request`, `revoke` | Add, replace or remove a signature, waive it, create or revoke a signing link | write, signatures |
+| `jetlog signatures attach`, `attach-many`, `remove`, `waive`, `unwaive`, `request`, `revoke` | Add, replace or remove a signature, waive it, create or revoke a signing link | write, signatures |
 | `jetlog import <file>` | Import a file into your account | write |
 | `jetlog batches list`, `batches remove <id>` | List and undo imports | write |
 | `jetlog changes show <id>`, `changes apply <id>` | Inspect or apply a change an assistant proposed | write |
@@ -134,9 +134,9 @@ account:
   `--dry-run` never writes. Every import is a batch that
   `jetlog batches remove <id>` undoes.
 - `jetlog attachments add`, `attachments remove`, `photos set` and the
-  `signatures` commands that change something (`attach`, `remove`, `waive`,
-  `unwaive`, `request`, `revoke`) show what they will do and ask you to
-  confirm. With the `signatures` permission a login can add, replace and
+  `signatures` commands that change something (`attach`, `attach-many`,
+  `remove`, `waive`, `unwaive`, `request`, `revoke`) show what they will do
+  and ask you to confirm. With the `signatures` permission a login can add, replace and
   remove the signature on an entry. Replace and remove are recorded in your
   account's audit log, and you get a push notification.
 - `jetlog changes apply` and the MCP tool `apply_changes` write a change that
@@ -155,6 +155,14 @@ scopes `files` and `signatures`. `jetlog login` asks for `read files signatures`
 made with an older version of the tool lacks the last two, so log in again to
 use the file, photo and signature commands. Revoke a token in the Jetlog app
 under Settings > Connected Apps.
+
+## Examples
+
+- [examples/flights.csv](examples/flights.csv): a small CSV to try
+  `jetlog convert` with
+- [examples/payload.json](examples/payload.json): a Jetlog import payload
+- [examples/pilotlog-signatures/](examples/pilotlog-signatures/): copy the
+  signatures from CL PILOTLOG on a Mac and attach them to your entries
 
 ## Documentation
 

@@ -1,5 +1,5 @@
 /**
- * `jetlog signatures show|get|attach|remove|waive|unwaive|request|revoke`.
+ * `jetlog signatures show|get|attach|attach-many|remove|waive|unwaive|request|revoke`.
  *
  * Every change previews first and asks for confirmation unless `--yes`. Writes of entry rows open one
  * `edit` batch per run. With the `signatures` scope a token can read, attach, replace and remove the signature
@@ -7,6 +7,8 @@
  * does not apply. Every change is recorded in the account's audit log. Status and prompts go to stderr,
  * data to stdout.
  */
+import { readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import {
   createImportBatch,
   createSignatureRequest,
@@ -17,7 +19,7 @@ import {
   type EntryDetail
 } from "../api/client.js";
 import { fetchAttachment, saveAttachment } from "../attachments/download.js";
-import { inspectFile, uploadInspected } from "../attachments/upload.js";
+import { inspectFile, uploadInspected, type LocalFile } from "../attachments/upload.js";
 import { confirm } from "./confirm.js";
 import { requireClient } from "./entries.js";
 import { entryLabel, formatBytes, orNotFound, plural } from "./format.js";
@@ -30,6 +32,12 @@ interface Common {
 
 /** Most entries one signing link made with a token may cover (server-enforced). */
 export const MAX_LINK_ENTRIES = 20;
+
+/**
+ * Most signatures one `attach-many` run attaches. It is the server's hourly budget for signature changes and
+ * also the most rows one write carries, so one run is one write.
+ */
+export const MAX_ATTACH_PER_RUN = 200;
 
 type SignatureState = "none" | "waived" | "signed" | "unknown";
 
@@ -119,6 +127,132 @@ export async function signaturesAttach(opts: Common & { entryId: string; image: 
   const uploaded = await uploadInspected(client, "signature", file);
   await putResourceChunked(client, "entries", [{ id: opts.entryId, signature_attachment_id: uploaded.attachment_id }], batch.id);
   console.error(replacing ? "Signature replaced." : "Signature attached.");
+}
+
+interface AttachItem {
+  entryId: string;
+  file: string;
+}
+
+export interface AttachCandidate<E> {
+  item: AttachItem;
+  entry: E;
+}
+
+export interface AttachDecision<E> {
+  /** Items to attach now, in list order. */
+  todo: Array<AttachCandidate<E> & { replacing: boolean; waived: boolean }>;
+  skipped: Array<AttachCandidate<E> & { reason: string }>;
+  /** Items that would be attached but are over the cap, left for a later run. */
+  deferred: Array<AttachCandidate<E>>;
+}
+
+/** Decides per item, in list order, what happens to it. Pure, so it needs no server. */
+export function decideAttachMany<E extends Pick<EntryDetail, "signature" | "is_bulk">>(
+  candidates: Array<AttachCandidate<E>>,
+  replace: boolean,
+  cap: number
+): AttachDecision<E> {
+  const decision: AttachDecision<E> = { todo: [], skipped: [], deferred: [] };
+  for (const candidate of candidates) {
+    const state = stateOf(candidate.entry as EntryDetail);
+    if (candidate.entry.is_bulk === true) {
+      decision.skipped.push({ ...candidate, reason: "bulk entries cannot be signed." });
+    } else if (state === "signed" && !replace) {
+      decision.skipped.push({ ...candidate, reason: "already signed. Pass --replace to replace the signature." });
+    } else if (decision.todo.length >= cap) {
+      decision.deferred.push(candidate);
+    } else {
+      decision.todo.push({ ...candidate, replacing: state === "signed", waived: state === "waived" });
+    }
+  }
+  return decision;
+}
+
+async function readAttachList(listPath: string): Promise<AttachItem[]> {
+  let raw: string;
+  try {
+    raw = await readFile(listPath, "utf8");
+  } catch (err) {
+    throw new Error(`cannot read ${sanitizeForTerminal(listPath)}: ${sanitizeForTerminal((err as Error).message)}`);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`${sanitizeForTerminal(listPath)} is not valid JSON.`);
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error("the list must be a JSON array with at least one {entry_id, file} item.");
+  }
+  const base = dirname(resolve(listPath));
+  const seen = new Set<string>();
+  return parsed.map((value: unknown, index) => {
+    const item = value as Record<string, unknown> | null;
+    const entryId = item?.entry_id;
+    const file = item?.file;
+    if (
+      typeof value !== "object" || value === null || Array.isArray(value) ||
+      typeof entryId !== "string" || entryId === "" || typeof file !== "string" || file === ""
+    ) {
+      throw new Error(`item ${index + 1} of the list needs a non-empty entry_id and file.`);
+    }
+    if (seen.has(entryId)) throw new Error(`entry ${sanitizeForTerminal(entryId)} is listed more than once.`);
+    seen.add(entryId);
+    return { entryId, file: resolve(base, file) };
+  });
+}
+
+export async function signaturesAttachMany(opts: Common & { list: string; replace?: boolean; yes?: boolean }): Promise<void> {
+  // Local checks first, so a bad list or file fails before anything is sent.
+  const items = await readAttachList(opts.list);
+  const files = new Map<string, LocalFile>();
+  for (const item of items) files.set(item.entryId, await inspectFile(item.file, "signature"));
+  const client = await requireClient(opts.profile, opts.baseUrl);
+  const entries = await loadEntries(client, items.map((i) => i.entryId));
+
+  const { todo, skipped, deferred } = decideAttachMany(
+    items.map((item, i) => ({ item, entry: entries[i]! })),
+    opts.replace === true,
+    MAX_ATTACH_PER_RUN
+  );
+  if (deferred.length > 0) {
+    console.error(
+      `Only the first ${MAX_ATTACH_PER_RUN} are attached now, because the server allows ${MAX_ATTACH_PER_RUN} signature changes per hour. ` +
+        `Run the same command again in an hour for the other ${deferred.length} (entries signed by then are skipped).`
+    );
+  }
+
+  for (const s of skipped) console.error(`Skipping ${describeEntry(s.entry)}: ${s.reason}`);
+  for (const t of todo) {
+    const file = files.get(t.item.entryId)!;
+    const described = `${sanitizeForTerminal(file.fileName)} (${file.contentType}, ${formatBytes(file.byteSize)})`;
+    const action = t.replacing ? `Will replace the existing signature with ${described}.` : `Will attach ${described}.`;
+    console.error(`Entry ${describeEntry(t.entry)}. ${action}${t.waived ? " The waiver is replaced by the signature." : ""}`);
+  }
+  if (todo.length === 0) {
+    console.error("nothing to do.");
+    return;
+  }
+  console.error("This is recorded in your account's audit log.");
+
+  const replaced = todo.filter((t) => t.replacing).length;
+  const count = plural(todo.length, "signature", "signatures");
+  const prompt = replaced > 0 ? `Attach ${count} (${replaced} replace an existing signature)?` : `Attach ${count}?`;
+  if (!opts.yes && !(await confirm(prompt))) {
+    console.error("aborted: nothing was changed.");
+    return;
+  }
+
+  const batch = await createImportBatch(client, { kind: "edit", client: "jetlog-cli", label: `signatures attach-many ${todo.length}` });
+  const rows: Array<{ id: string; signature_attachment_id: string }> = [];
+  for (const [i, t] of todo.entries()) {
+    const uploaded = await uploadInspected(client, "signature", files.get(t.item.entryId)!);
+    rows.push({ id: t.item.entryId, signature_attachment_id: uploaded.attachment_id });
+    if ((i + 1) % 20 === 0 && i + 1 < todo.length) console.error(`Uploaded ${i + 1} of ${todo.length}.`);
+  }
+  await putResourceChunked(client, "entries", rows, batch.id);
+  console.error(`Attached ${count}.${replaced > 0 ? ` ${replaced} replaced an existing signature.` : ""}`);
 }
 
 interface WaiveSpec {
