@@ -15,7 +15,8 @@ images included. This script reads that folder and never changes it.
   that ships with macOS.
 - For the attach step: `npm i -g jetlog-cli` (a version that has
   `jetlog signatures attach-many`) and a login with write access
-  (`jetlog login --scope write`).
+  (`jetlog login --scope write`). In the app, "Make changes to your logbook"
+  has to be switched on before you pick the number; it is off by default.
 - Your flights already in Jetlog, for example with
   `jetlog import <export.csv> --from pilotlog`.
 

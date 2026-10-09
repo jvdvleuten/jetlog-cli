@@ -45,6 +45,9 @@ jetlog login                  # read only, plus downloading files
 jetlog login --scope write    # also allow edits that you confirm, plus files and signatures
 ```
 
+For `--scope write`, switch on "Make changes to your logbook" in the Jetlog app
+before you pick the number. It is off by default.
+
 A login made with an older version of the tool lacks the `files` and
 `signatures` scopes, so log in again to use the file tools below. Then restart
 or reconnect the MCP server. If you logged in with

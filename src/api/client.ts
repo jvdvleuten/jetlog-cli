@@ -181,7 +181,8 @@ function messageForStatus(
       return "not logged in, or your token is invalid/expired. Run `jetlog login`.";
     case 403:
       if (code === "insufficient_scope") {
-        return "your token is missing a scope needed for this. Run `jetlog login` again to grant it (add `--scope write` if you need to change things).";
+        return "your login does not have the permission this needs. Run `jetlog login` again (`jetlog login --scope write` to change things) and leave the permission switched on in the app. " +
+          'Write access is the switch "Make changes to your logbook", which is off until you turn it on.';
       }
       if (code === "route_not_available_to_token") {
         return "this operation isn't available to a personal access token.";

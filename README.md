@@ -47,6 +47,10 @@ jetlog import logten-export.txt --from logten             # preview, confirm, th
 jetlog batches list                                       # every import, each one can be undone
 ```
 
+When the app shows the login request, switch on "Make changes to your logbook"
+before you pick the number. It is off by default, and without it the login can
+only read. The CLI says so when that happens.
+
 ## Use it with an AI assistant
 
 `jetlog mcp` runs a local [MCP](https://modelcontextprotocol.io) server. The

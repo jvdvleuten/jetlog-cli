@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { login, loginScopes, renderQr, shouldPrintQr, type LoginIo } from "../../src/commands/login.js";
+import { login, loginScopes, missingScopes, renderQr, shouldPrintQr, type LoginIo } from "../../src/commands/login.js";
 import { getProfile } from "../../src/auth/credentials.js";
 import { TestServer, jsonHandler } from "../helpers/test-server.js";
 
@@ -19,7 +19,7 @@ const GRANT = {
 const TOKEN = {
   access_token: "jlp_minted",
   token_type: "Bearer",
-  scope: "read",
+  scope: "read files signatures",
   expires_in: 7776000,
   token_id: 7
 };
@@ -62,7 +62,7 @@ describe("login command", () => {
 
   async function run(
     handlers: ReturnType<typeof jsonHandler>[],
-    opts: { qr?: boolean; open?: boolean } = {},
+    opts: { qr?: boolean; open?: boolean; scope?: "read" | "write"; profile?: string } = {},
     ioOverrides: Partial<LoginIo> = {}
   ) {
     const server = new TestServer(handlers);
@@ -120,6 +120,40 @@ describe("login command", () => {
     }
   });
 
+  it("tells a write login to switch on the write permission, and a read login nothing extra", async () => {
+    const write = await run(success, { scope: "write" });
+    expect(write.out).toContain('  To allow changes, first switch on "Make changes to your logbook" there. It starts off.');
+    const read = await run(success);
+    expect(read.out.join("\n")).not.toContain("Make changes to your logbook");
+  });
+
+  it("warns when write was asked for but not granted, and still stores the token", async () => {
+    const granted = [...success.slice(0, 3), jsonHandler(200, { ...TOKEN, scope: "read files signatures" }), success[4]!];
+    const { out, err } = await run(granted, { scope: "write" });
+    expect(out.at(-1)).toContain("Logged in as pilot@example.com");
+    const text = err.join("\n");
+    expect(text).toContain("Write access was not granted");
+    expect(text).toContain('"Make changes to your logbook"');
+    expect(text).toContain("`jetlog login --scope write`");
+    expect(text).not.toContain("Not granted:");
+    expect(process.exitCode).toBe(originalExit);
+    expect((await getProfile("default"))?.token).toBe("jlp_minted");
+  });
+
+  it("adds the profile to the rerun command, and names files and signatures when they are missing", async () => {
+    const granted = [...success.slice(0, 3), jsonHandler(200, { ...TOKEN, scope: "read" }), success[4]!];
+    const { err } = await run(granted, { scope: "write", profile: "work" });
+    const text = err.join("\n");
+    expect(text).toContain("`jetlog login --scope write --profile work`");
+    expect(text).toContain("Not granted: files, signatures. The commands that need them will say so.");
+  });
+
+  it("prints no warning when everything asked for was granted", async () => {
+    const granted = [...success.slice(0, 3), jsonHandler(200, { ...TOKEN, scope: "read write files signatures" }), success[4]!];
+    const { err } = await run(granted, { scope: "write" });
+    expect(err).toEqual([]);
+  });
+
   it("skips the QR (but still prints number, code and URL) when stdout is not a TTY", async () => {
     const { out } = await run(success, {}, { isTTY: false });
     const text = out.join("\n");
@@ -162,6 +196,14 @@ describe("login command", () => {
     expect(denied.err.join("\n")).toContain("denied in the app");
     const expired = await run([jsonHandler(200, GRANT), jsonHandler(400, { error: "expired_token" })]);
     expect(expired.err.join("\n")).toContain("expired");
+  });
+});
+
+describe("missingScopes", () => {
+  it("returns the asked scopes that were not granted, in the order asked", () => {
+    expect(missingScopes("read write files signatures", "read files signatures")).toEqual(["write"]);
+    expect(missingScopes("read write files signatures", "read")).toEqual(["write", "files", "signatures"]);
+    expect(missingScopes("read files signatures", "read write files signatures")).toEqual([]);
   });
 });
 

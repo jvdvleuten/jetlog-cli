@@ -73,6 +73,12 @@ export function loginScopes(scope: "read" | "write"): string {
   return scope === "write" ? "read write files signatures" : "read files signatures";
 }
 
+/** The scope names that were asked for but are not in the granted scope string, in the order asked. */
+export function missingScopes(asked: string, granted: string): string[] {
+  const have = new Set(granted.split(/\s+/).filter(Boolean));
+  return asked.split(/\s+/).filter((name) => name && !have.has(name));
+}
+
 export async function login(opts: LoginOptions, io: LoginIo = defaultIo): Promise<void> {
   const baseUrl = opts.baseUrl ?? process.env.JETLOG_BASE_URL ?? DEFAULT_BASE_URL;
   const client = new ApiClient({ baseUrl });
@@ -88,6 +94,9 @@ export async function login(opts: LoginOptions, io: LoginIo = defaultIo): Promis
   // The number comes first: it is what the pilot has to remember while looking at the phone.
   io.out(`  Your number:   ${matchNumber}`);
   io.out("  Pick this number in the Jetlog app when it asks.");
+  if (opts.scope === "write") {
+    io.out('  To allow changes, first switch on "Make changes to your logbook" there. It starts off.');
+  }
   io.out("");
 
   const qr = renderQr(grant.verification_uri_complete);
@@ -165,4 +174,18 @@ export async function login(opts: LoginOptions, io: LoginIo = defaultIo): Promis
   });
 
   io.out(`Logged in${me?.email ? ` as ${me.email}` : ""} (scope: ${token.scope}, profile: ${opts.profile}).`);
+
+  // A token answer may leave `scope` out when it equals what was asked, so only a stated scope is compared.
+  const missing = typeof token.scope === "string" ? missingScopes(scope, token.scope) : [];
+  if (missing.includes("write")) {
+    const rerun = `jetlog login --scope write${opts.profile === "default" ? "" : ` --profile ${opts.profile}`}`;
+    io.err(
+      'Write access was not granted, so this login can only read. "Make changes to your logbook" was off in the app. ' +
+        `Run \`${rerun}\` again and switch it on before you pick the number.`
+    );
+  }
+  const missingOptional = missing.filter((name) => name === "files" || name === "signatures");
+  if (missingOptional.length > 0) {
+    io.err(`Not granted: ${missingOptional.join(", ")}. The commands that need them will say so.`);
+  }
 }

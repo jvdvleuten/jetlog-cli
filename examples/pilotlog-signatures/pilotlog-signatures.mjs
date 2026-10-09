@@ -352,6 +352,26 @@ function printPlan(plan) {
   }
 }
 
+// Returns a note when the current login cannot attach signatures, or undefined when it can or cannot be checked.
+function permissionProblem(profile) {
+  const res = spawnSync(JETLOG, ["whoami", "--json", ...profileArgs(profile)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  if (res.error || res.status !== 0) return undefined;
+  let scopes;
+  try {
+    scopes = JSON.parse(res.stdout)?.token?.scopes;
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(scopes)) return undefined;
+  const missing = ["write", "signatures"].filter((name) => !scopes.includes(name));
+  if (missing.length === 0) return undefined;
+  const login = `jetlog login --scope write${profile ? ` --profile ${profile}` : ""}`;
+  const fix = missing.includes("write")
+    ? `Run \`${login}\` and switch on "Make changes to your logbook" in the app before you pick the number.`
+    : `Run \`${login}\` again and leave "Signatures" switched on in the app.`;
+  return `This Jetlog login cannot attach signatures yet (missing: ${missing.join(", ")}).\n${fix}`;
+}
+
 async function confirmAttach(count, yes) {
   console.error("The signatures are written in one go: one line in `jetlog batches list`, one notification on your phone, and a record in your account's audit log.");
   if (yes) return true;
@@ -367,7 +387,9 @@ async function attach(signatures, opts, outDir) {
   console.log();
   printPlan(plan);
   const todo = plan.filter((i) => i.action);
+  const problem = todo.length > 0 ? permissionProblem(opts.profile) : undefined;
   if (opts["dry-run"]) {
+    if (problem) console.log(`Note: ${problem}`);
     console.log("Dry run: nothing was changed.");
     return;
   }
@@ -375,6 +397,7 @@ async function attach(signatures, opts, outDir) {
     console.log("Nothing to attach.");
     return;
   }
+  if (problem) throw new Fail(problem);
   if (!(await confirmAttach(todo.length, opts.yes))) {
     console.log("aborted: nothing was changed.");
     return;

@@ -181,6 +181,20 @@ so and change nothing. An `insufficient_scope` or
 `route_not_available_to_token` error means the token does not allow what you
 asked. Run `jetlog login` again with the right `--scope`.
 
+The approval screen in the Jetlog app ("Approve Login") has four switches under
+Access:
+
+- "Read your logbook": always on.
+- "Make changes to your logbook": off until you switch it on, even when you
+  ran `jetlog login --scope write`.
+- "Files and photos": on.
+- "Signatures": on.
+
+Picking the number approves the login at once, so set the switches first.
+`jetlog login` prints the scope that was granted and warns when write access
+was asked for but not given. `jetlog whoami` shows the scopes of the current
+login.
+
 `jetlog logout` deletes the local credential only. The token itself stays
 valid until it expires or you revoke it in the Jetlog app, under Settings >
 Connected Apps.
@@ -272,7 +286,7 @@ It works like `attachments get`: it saves into the current directory, or to
 `-o` (a file or a directory), and never overwrites unless you pass `--force`.
 If the entry is not signed it says so and exits with 1. If the login was made
 without the `signatures` permission it says so and tells you to run
-`jetlog login` again and keep that permission ticked.
+`jetlog login` again and keep that permission switched on.
 
 - `signatures attach` sets a PNG (up to 5 MiB and 4096 pixels per side) as the
   signature of an entry. Dark ink on a transparent background, about 250

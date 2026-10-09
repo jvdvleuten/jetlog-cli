@@ -58,7 +58,7 @@ function accessMessage(access: McpAccess, profile: string, need: "read" | "write
     profile === "default"
       ? "If the user already logged in under a named profile, set the JETLOG_PROFILE env var of this MCP server to that profile name."
       : `This server uses the profile "${profile}" (from JETLOG_PROFILE).`;
-  const restart = "then restart or reconnect this MCP server";
+  const restart = "restart or reconnect this MCP server";
   if (access === "none") {
     return (
       "This MCP server is not logged in to Jetlog, so nothing was " +
@@ -67,12 +67,14 @@ function accessMessage(access: McpAccess, profile: string, need: "read" | "write
       fix +
       "` in a terminal (writing changes needs a write-scoped login" +
       (need === "read" ? "; `--scope read` is enough for reading only" : "") +
-      `), ${restart}. ${profileHint}`
+      `), then ${restart}. ${profileHint}`
     );
   }
   return (
     `This Jetlog login (profile "${profile}") is read-only, so nothing was changed. ` +
-    `Ask the user to run \`${fix}\` in a terminal to grant write access, ${restart}.`
+    `Ask the user to run \`${fix}\` in a terminal to grant write access. ` +
+    'In the Jetlog app they have to switch on "Make changes to your logbook" before they pick the number, because it is off by default. ' +
+    `Afterwards ${restart}.`
   );
 }
 
@@ -92,7 +94,7 @@ function filesScopeMessage(profile: string, need: "read" | "write", scopes: stri
   return (
     `This Jetlog login (profile "${profile}") does not grant what this tool needs (${describeScopes(scopes)}${need === "write" ? " and write access" : ""}), ` +
     `so nothing was ${need === "write" ? "changed" : "read"}. Ask the user to run \`${fix}\` in a terminal to sign in again ` +
-    "and keep the permission ticked, then restart or reconnect this MCP server."
+    "and keep the permission switched on, then restart or reconnect this MCP server."
   );
 }
 

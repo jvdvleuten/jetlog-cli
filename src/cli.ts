@@ -355,7 +355,7 @@ async function runReadCommand(fn: () => Promise<void>): Promise<void> {
 program
   .command("login")
   .description("Log in to Jetlog via the device-code flow")
-  .option("--scope <scope>", "read or write (file access and signatures are requested along with it)", "read")
+  .option("--scope <scope>", 'read or write (files and signatures are requested along with it; for write, also switch on "Make changes to your logbook" in the app)', "read")
   .option("--profile <name>", "credential profile to save under", "default")
   .option("--base-url <url>", "override API base URL (for local dev)")
   .option("--no-qr", "don't print the QR code in the terminal")
