@@ -97,8 +97,11 @@ made before that scope existed gets a message to run `jetlog login` again.
 | `create_upload_link` | A short-lived page for adding files to one entry or a photo to one person from another device |
 | `get_upload_link_status` | What has landed through an upload link |
 
-`push_payload` (write a payload through the partner API) only exists when
-`JETLOG_USER_KEY` and `JETLOG_PARTNER_KEY` are set. It writes immediately.
+`push_payload` (write a payload through the partner API) is deprecated and only
+exists when `JETLOG_USER_KEY` and `JETLOG_PARTNER_KEY` are set. It writes
+immediately, with the partner key pair, which is being replaced by token
+authentication (see the
+[migration guide](https://github.com/jvdvleuten/JetlogAPI/blob/main/MIGRATION.md)).
 
 The resource `jetlog://format-rules` holds the payload rules in plain text.
 
@@ -209,7 +212,7 @@ Changing the logbook:
   it on a general earlier go-ahead. A replace is an entry update with a new
   `signature_attachment_id` (any signature image already in the logbook, or
   one from `upload_file`). A remove is `signature_attachment_id: null`.
-- Never use `push_payload` unless the pilot asks for the partner API by name.
+- Never use `push_payload` unless the pilot asks for the partner API by name. It is deprecated.
 
 Converting and importing files:
 

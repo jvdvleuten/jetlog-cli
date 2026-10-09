@@ -37,6 +37,7 @@ import { uploadFile } from "./attachments/upload.js";
 import { downloadRoot, fetchAttachment, saveInsideRoot } from "./attachments/download.js";
 import { sanitizeForTerminal } from "./commands/output.js";
 import { orNotFound } from "./commands/format.js";
+import { PARTNER_MIGRATION_URL } from "./commands/push.js";
 
 const DEFAULT_BASE_URL = "https://jetlog.app";
 
@@ -551,9 +552,12 @@ export async function createMcpServer(): Promise<McpServer> {
     server.registerTool(
       "push_payload",
       {
-        title: "Push a Jetlog import payload to the live API",
+        title: "Push a Jetlog import payload to the live API (deprecated)",
         description:
-          "Validates and POSTs a payload to the External Partner API (/external/v1/import). " +
+          "DEPRECATED. Validates and POSTs a payload to the External Partner API (/external/v1/import) with the " +
+          "partner key pair (JETLOG_USER_KEY and JETLOG_PARTNER_KEY). That key pair is deprecated: partners are " +
+          "moving to token authentication, and the key route will be switched off on a date that is still to be " +
+          `announced. Migration guide: ${PARTNER_MIGRATION_URL}. ` +
           "This writes data immediately, unlike make_import_links.",
         inputSchema: {
           payload: z.unknown().describe("The payload object to push."),

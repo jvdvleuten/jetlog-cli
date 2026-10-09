@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { Command } from "commander";
 import { getJsonSchema, formatJsonSchemaAsMarkdown } from "./json-schema.js";
-import { validatePayload, payloadSchema, type ImportMode, type Payload } from "./schema.js";
+import { validatePayload, payloadSchema, type ImportMode } from "./schema.js";
 import { convertFile, convertFiles, type ConvertFormat, type DateFormat } from "./convert/index.js";
 import { buildImportLinks, openLink, type DeeplinkScheme } from "./deeplink.js";
 import { createProvider, aiConvert, ANTHROPIC_DEFAULT_MODEL, OPENAI_DEFAULT_MODEL } from "./ai/index.js";
@@ -20,6 +20,7 @@ import { runExport } from "./commands/export.js";
 import { runImport } from "./commands/import.js";
 import { batchesList, batchesRemove, batchesRemoveAllCli } from "./commands/batches.js";
 import { changesShow, changesApply } from "./commands/changes.js";
+import { PUSH_DESCRIPTION, runPush } from "./commands/push.js";
 import { attachmentsAdd, attachmentsGet, attachmentsList, attachmentsRemove } from "./commands/attachments.js";
 import { photosGet, photosSet } from "./commands/photos.js";
 import {
@@ -269,66 +270,12 @@ program
 
 program
   .command("push")
-  .description("Push a Jetlog import payload to the External Partner API")
+  .description(PUSH_DESCRIPTION)
   .argument("<file>", "file to read, or - for stdin")
   .option("--base-url <url>", "override API base URL", "https://jetlog.app")
   .option("--dry-run", "only validate, do not send")
   .action(async (file: string, opts: { baseUrl: string; dryRun?: boolean }) => {
-    const content = await readInput(file);
-    const data = JSON.parse(content);
-    const result = validatePayload(data, "api");
-    if (!result.valid || !result.payload) {
-      printValidationErrors(result);
-      process.exitCode = 1;
-      return;
-    }
-
-    if (opts.dryRun) {
-      console.log(`valid: ${result.payload.entries?.length ?? 0} entries, dry run, nothing sent`);
-      return;
-    }
-
-    const userKey = process.env.JETLOG_USER_KEY;
-    const partnerKey = process.env.JETLOG_PARTNER_KEY;
-    if (!userKey || !partnerKey) {
-      console.error("error: JETLOG_USER_KEY and JETLOG_PARTNER_KEY must be set");
-      process.exitCode = 1;
-      return;
-    }
-
-    const entries = result.payload.entries ?? [];
-    const batchSize = 500;
-    for (let i = 0; i < entries.length || i === 0; i += batchSize) {
-      const batch: Payload = {
-        entries: entries.slice(i, i + batchSize),
-        people: i === 0 ? result.payload.people ?? [] : []
-      };
-      if (batch.entries!.length === 0 && i !== 0) break;
-
-      const response = await fetch(`${opts.baseUrl}/external/v1/import`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${userKey}:${partnerKey}`
-        },
-        body: JSON.stringify(batch)
-      });
-      const body = (await response.json().catch(() => ({}))) as {
-        skipped?: unknown[];
-        warnings?: unknown[];
-        error?: string;
-      };
-      if (!response.ok) {
-        console.error(`error: HTTP ${response.status}: ${body.error ?? "unknown error"}`);
-        process.exitCode = 1;
-        continue;
-      }
-      if (body.skipped?.length) console.log(`skipped: ${JSON.stringify(body.skipped, null, 2)}`);
-      if (body.warnings?.length) console.log(`warnings: ${JSON.stringify(body.warnings, null, 2)}`);
-      console.log(`batch ${Math.floor(i / batchSize) + 1}: OK`);
-
-      if (entries.length === 0) break;
-    }
+    await runPush(await readInput(file), opts);
   });
 
 const ai = program.command("ai").description("AI-assisted conversion (bring your own API key)");
@@ -373,7 +320,7 @@ ai.command("convert")
       const dates = entries.map((e) => e.date).sort();
       const range = dates.length > 0 ? `${dates[0]} to ${dates[dates.length - 1]}` : "n/a";
       console.error(`converted ${entries.length} entries, date range ${range}`);
-      console.error("nothing was written to Jetlog. Use `jetlog link` or `jetlog push` to import it.");
+      console.error("nothing was written to Jetlog. Use `jetlog link` or `jetlog import --from deeplink-json` to import it.");
 
       const output = JSON.stringify(payload, null, 2);
       if (opts.output) {

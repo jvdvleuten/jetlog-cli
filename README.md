@@ -97,7 +97,7 @@ confirm step works, and a short guide written for the assistant itself.
 | `jetlog import <file>` | Import a file into your account | write |
 | `jetlog batches list`, `batches remove <id>` | List and undo imports | write |
 | `jetlog changes show <id>`, `changes apply <id>` | Inspect or apply a change an assistant proposed | write |
-| `jetlog push <file>` | Send a payload to the partner API | partner keys |
+| `jetlog push <file>` | Deprecated. Send a payload to the partner API with the key pair | partner keys |
 | `jetlog mcp` | Run the MCP server | optional |
 
 Every command has `--help`. [docs/COMMANDS.md](docs/COMMANDS.md) is the full
@@ -142,7 +142,10 @@ account:
 - `jetlog changes apply` and the MCP tool `apply_changes` write a change that
   was proposed and previewed first. Files, photos and signatures go through
   the same proposal step in the MCP server.
-- `jetlog push` sends a payload to the partner API straight away.
+- `jetlog push` sends a payload to the partner API straight away. It is
+  deprecated and prints a warning on stderr, because the key pair it uses is
+  being replaced by token authentication (see the
+  [migration guide](https://github.com/jvdvleuten/JetlogAPI/blob/main/MIGRATION.md)).
 
 A link from `jetlog link` writes nothing by itself. The app shows an import
 preview that you confirm there.

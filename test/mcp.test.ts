@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createMcpServer } from "../src/mcp.js";
+import { PARTNER_MIGRATION_URL } from "../src/commands/push.js";
 import { saveProfile } from "../src/auth/credentials.js";
 import { getActiveAirportIndex, getEmptyAirportIndex, setActiveAirportIndex } from "../src/airports/index.js";
 import { TestServer, jsonHandler, type Handler } from "./helpers/test-server.js";
@@ -108,13 +109,16 @@ describe("MCP server", () => {
     }
   });
 
-  it("registers push_payload when both keys are set", async () => {
+  it("registers push_payload when both keys are set, and its description says it is deprecated", async () => {
     process.env.JETLOG_USER_KEY = "u";
     process.env.JETLOG_PARTNER_KEY = "p";
     try {
       const { client } = await connectedClient();
       const { tools } = await client.listTools();
       expect(tools.map((t) => t.name)).toContain("push_payload");
+      const push = tools.find((t) => t.name === "push_payload")!;
+      expect(push.description).toMatch(/^DEPRECATED\./);
+      expect(push.description).toContain(PARTNER_MIGRATION_URL);
     } finally {
       delete process.env.JETLOG_USER_KEY;
       delete process.env.JETLOG_PARTNER_KEY;

@@ -11,7 +11,7 @@ Every command also has `--help`.
 - [Flight times](#flight-times): `times`, `totals`
 - [Importing](#importing): `import`, `batches`
 - [Proposed changes](#proposed-changes): `changes`
-- [Partner API](#partner-api): `push`
+- [Partner API](#partner-api): `push` (deprecated)
 - [Environment variables](#environment-variables)
 
 The MCP server (`jetlog mcp`) is described in [AI.md](AI.md).
@@ -136,7 +136,7 @@ Needs `ANTHROPIC_API_KEY` (provider `anthropic`, the default) or
 `JETLOG_AI_MODEL`. Large inputs are sent in chunks. The result goes through
 the same validator as every other command. If it fails, the model gets its
 own errors back for one repair attempt. This command never writes to Jetlog.
-It prints a summary and you continue with `jetlog link` or `jetlog push`.
+It prints a summary and you continue with `jetlog link` or `jetlog import --from deeplink-json`.
 
 ## Login and reading
 
@@ -466,8 +466,12 @@ There is no command to propose a change. That is done through the MCP server.
 
 ### `jetlog push`
 
-Sends a payload to Jetlog's External Partner API. For partners that hold a
-partner key. As a pilot you want `jetlog import`.
+**Deprecated.** Sends a payload to Jetlog's External Partner API with the key
+pair, which is being replaced by token authentication. Partners move to the
+token flow described in the
+[migration guide](https://github.com/jvdvleuten/JetlogAPI/blob/main/MIGRATION.md).
+The command keeps working and prints a one line warning on stderr, so stdout
+stays the same for scripts. As a pilot you want `jetlog import`.
 
 ```sh
 export JETLOG_USER_KEY=...
@@ -487,6 +491,6 @@ per request, and prints `skipped` and `warnings` from each response.
 | `JETLOG_BASE_URL` | API base URL, same as `--base-url`. |
 | `JETLOG_PROFILE` | Which login profile `jetlog mcp` uses. |
 | `JETLOG_DOWNLOAD_DIR` | Folder where the MCP tool `download_attachment` saves files. Default `~/Downloads/jetlog`. |
-| `JETLOG_USER_KEY`, `JETLOG_PARTNER_KEY` | Partner API keys for `jetlog push` and the MCP tool `push_payload`. |
+| `JETLOG_USER_KEY`, `JETLOG_PARTNER_KEY` | Partner API key pair for `jetlog push` and the MCP tool `push_payload`. Both are deprecated. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | Keys for `jetlog ai convert`. |
 | `JETLOG_AI_MODEL` | Model for `jetlog ai convert`. |
