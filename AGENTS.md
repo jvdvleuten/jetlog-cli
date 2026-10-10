@@ -111,5 +111,9 @@ skipped when there is neither.
   tools.
 - Text is plain: no em dashes in CLI output, help, MCP texts, comments or
   docs.
+- User-facing text follows the Jetlog voice: plain statements, sentence case,
+  no emoji, no exclamation marks, exact aviation terms. The CLI has no visual
+  identity of its own. Maintainers: the rules come from
+  the Jetlog Design System (the `jetlog-design` skill), which is not public.
 - `scripts/e2e-*.sh` are for maintainers. They need a local checkout of the
   Jetlog backend, which is not public, and are not part of `npm test`.
