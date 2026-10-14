@@ -494,6 +494,20 @@ object (`id`, `status`, `summary`, `counts`, `expires_at`, `preview`, `next`).
 `apply` asks for confirmation. `--yes` skips the question, and an assistant
 passes it only after the pilot said yes to that preview in the chat.
 
+## Coding agents
+
+```sh
+jetlog guide                  # the agent guide for this version (markdown)
+jetlog skill install          # Claude Code and Codex, in your home folder
+jetlog skill install --claude --project   # only Claude Code, in this project
+jetlog skill uninstall        # remove it again (same flags)
+```
+
+`skill install` writes `SKILL.md` to `~/.claude/skills/jetlog/` and
+`~/.agents/skills/jetlog/` (Codex), or with `--project` to `.claude/skills/jetlog/`
+and `.agents/skills/jetlog/` in the current folder. It replaces an older
+Jetlog skill and prints every path it wrote. See [AI.md](AI.md).
+
 ## Partner API
 
 ### `jetlog push`

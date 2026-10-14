@@ -2,7 +2,7 @@
 
 Guidance for contributors and for AI coding tools working in this repo.
 (Looking for how an assistant uses the `jetlog` tool itself? That is
-[docs/AI.md](docs/AI.md).)
+[docs/AI.md](docs/AI.md); the text agents read is `docs/AGENT_GUIDE.md`.)
 
 ## What this is
 
@@ -59,6 +59,17 @@ skipped when there is neither.
 - `src/ai/`: LLM conversion behind a provider interface (`provider.ts`,
   `anthropic.ts`, `openai.ts`), with chunking, validation and one repair
   round in `convert.ts`.
+- `src/changes-schema.ts`: the zod schema of the propose payload, shared by
+  the MCP `propose_changes` tool and `jetlog changes propose` (and its JSON
+  Schema output). `commands/changes.ts` holds propose, show and apply.
+- `docs/AGENT_GUIDE.md` and `skills/jetlog/SKILL.md`: the agent guide and the
+  Agent Skill. `scripts/build.mjs` bundles both as text (esbuild `.md` loader;
+  `vitest.config.ts` mirrors it), so `jetlog guide` and `jetlog skill install`
+  work from the build or vitest, not from `npm run dev`. `commands/skill.ts`
+  writes the skill to `~/.claude/skills` and `~/.agents/skills` (Codex), or the
+  project equivalents. Keep the guide the only copy of the agent rules.
+- `src/version.ts`: the version comes from package.json (esbuild `define` at
+  build time). Bump it in package.json and server.json only.
 - `src/mcp.ts`: the MCP server. The file tools (`upload_file`,
   `list_entry_attachments`, `download_attachment`, `create_upload_link`,
   `get_upload_link_status`) sit behind a gate that needs the `files` scope in

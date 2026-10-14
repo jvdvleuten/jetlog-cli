@@ -11,8 +11,9 @@ The binary is called `jetlog`.
 - Work with the files, photos and signatures in your logbook.
 - Compute flight-time totals locally (PIC, IFR, EASA columns). Night time and
   distance-based figures need your airport catalog, so they need a login.
-- Run an MCP server so an AI assistant such as Claude can read your logbook
-  and propose changes that you confirm.
+- Let a coding agent such as Claude Code or Codex work with your logbook
+  through this CLI (`jetlog skill install`), with edits you confirm. A local
+  MCP server is available for chat apps.
 
 ## Install
 
@@ -61,29 +62,31 @@ only read. The CLI says so when that happens.
 
 ## Use it with an AI assistant
 
-`jetlog mcp` runs a local [MCP](https://modelcontextprotocol.io) server. The
-assistant can then convert files, search your logbook, compute totals and
-propose edits. An edit is only written after you confirm it in the chat.
+Quick start for coding agents (Claude Code, Codex):
 
-Claude Code:
+```sh
+npm i -g jetlog-cli
+jetlog login --scope write
+jetlog skill install
+```
+
+Then just ask your agent, for example "how many hours did I fly in March?" or
+"fix the registration on yesterday's flight". The skill tells the agent to run
+`jetlog guide`. It can read, search, export and import (previewing first) and
+make targeted edits. An edit is only written after you confirm the preview in
+the chat, and the Jetlog app lists it under Settings > Connected Apps & CLI >
+Logbook Changes, where you can undo it.
+
+Chat apps that cannot run shell commands, such as Claude Desktop, can use
+`jetlog mcp`, a local [MCP](https://modelcontextprotocol.io) server. It is not
+needed for coding agents or for edits.
 
 ```sh
 claude mcp add jetlog -- npx -y jetlog-cli mcp
 ```
 
-Claude Desktop, in `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "jetlog": { "command": "npx", "args": ["-y", "jetlog-cli", "mcp"] }
-  }
-}
-```
-
-Run `jetlog login --scope write` once in a terminal so the server can reach
-your logbook. [docs/AI.md](https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/AI.md) has the full tool list, how the
-confirm step works, and a short guide written for the assistant itself.
+[docs/AI.md](https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/AI.md) has the details, the MCP tool list and how the
+confirm step works.
 
 ## Commands
 
@@ -108,7 +111,9 @@ confirm step works, and a short guide written for the assistant itself.
 | `jetlog signatures attach`, `attach-many`, `remove`, `waive`, `unwaive`, `request`, `revoke` | Add, replace or remove a signature, waive it, create or revoke a signing link | write, signatures |
 | `jetlog import <file>` | Import a file into your account | write |
 | `jetlog batches list`, `batches remove <id>` | List and undo imports | write |
-| `jetlog changes show <id>`, `changes apply <id>` | Inspect or apply a change an assistant proposed | write |
+| `jetlog changes propose [file]`, `changes schema`, `changes show <id>`, `changes apply <id>` | Propose a targeted edit and see the preview, print the payload schema, inspect or apply a proposal | write |
+| `jetlog guide` | Print the guide for coding agents | no |
+| `jetlog skill install`, `skill uninstall` | Install or remove the agent skill for Claude Code and Codex | no |
 | `jetlog push <file>` | Deprecated. Send a payload to the partner API with the key pair | partner keys |
 | `jetlog mcp` | Run the MCP server | optional |
 
@@ -152,8 +157,10 @@ account:
   remove the signature on an entry. Replace and remove are recorded in your
   account's audit log, and you get a push notification.
 - `jetlog changes apply` and the MCP tool `apply_changes` write a change that
-  was proposed and previewed first. Files, photos and signatures go through
-  the same proposal step in the MCP server.
+  was proposed and previewed first (`jetlog changes propose`). `--yes` skips
+  the question, and an agent passes it only after you confirmed the preview in
+  the chat. Files, photos and signatures go through the same proposal step in
+  the MCP server.
 - `jetlog push` sends a payload to the partner API straight away. It is
   deprecated and prints a warning on stderr, because the key pair it uses is
   being replaced by token authentication (see the

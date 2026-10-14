@@ -48,8 +48,9 @@ program
   .version(VERSION)
   .addHelpText(
     "after",
-    "\nAI assistants: `jetlog mcp` runs an MCP server. https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/AI.md explains the tools,\n" +
-      "which commands write to the account, and the confirm-first rule for those."
+    "\nCoding agents (Claude Code, Codex): run `jetlog skill install`, then `jetlog guide` prints what the agent needs to know.\n" +
+      "https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/AI.md covers which commands write to the account and the confirm-first rule.\n" +
+      "Chat apps can use `jetlog mcp`, a local MCP server."
   );
 
 /** What to pass so `times`/`totals` can tell which listed person is the user, per source format. */
@@ -971,6 +972,46 @@ changes
       })
     );
   });
+
+program
+  .command("guide")
+  .description("Print the guide for coding agents (Claude Code, Codex) that work with the pilot's logbook through this CLI")
+  .action(async () => {
+    const { printGuide } = await import("./commands/guide.js");
+    printGuide();
+  });
+
+const skill = program
+  .command("skill")
+  .description("Install the Jetlog agent skill, so Claude Code and Codex know how to use this CLI");
+
+function skillAction(run: "skillInstall" | "skillUninstall") {
+  return async (opts: { claude?: boolean; codex?: boolean; project?: boolean }) => {
+    await runReadCommand(async () => {
+      const mod = await import("./commands/skill.js");
+      await mod[run](opts);
+    });
+  };
+}
+
+skill
+  .command("install")
+  .description(
+    "Write the skill for Claude Code (~/.claude/skills/jetlog) and Codex (~/.agents/skills/jetlog). " +
+      "Overwrites an older Jetlog skill. With no flag, installs for both."
+  )
+  .option("--claude", "install for Claude Code only")
+  .option("--codex", "install for Codex only")
+  .option("--project", "install in this project (.claude/skills, .agents/skills) instead of your home folder")
+  .action(skillAction("skillInstall"));
+
+skill
+  .command("uninstall")
+  .description("Remove the Jetlog skill again (same flags as install)")
+  .option("--claude", "remove from Claude Code only")
+  .option("--codex", "remove from Codex only")
+  .option("--project", "remove from this project instead of your home folder")
+  .action(skillAction("skillUninstall"));
 
 program
   .command("mcp")
