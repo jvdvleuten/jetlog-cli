@@ -14,7 +14,7 @@ computes flight times locally, and runs an MCP server for AI tools.
 
 ```sh
 npm install
-npm run build   # tsc to dist/
+npm run build   # esbuild bundle to dist/ (zero runtime dependencies)
 npm test        # vitest run
 npm run lint    # tsc --noEmit
 ```
@@ -117,3 +117,9 @@ skipped when there is neither.
   the Jetlog Design System (the `jetlog-design` skill), which is not public.
 - `scripts/e2e-*.sh` are for maintainers. They need a local checkout of the
   Jetlog backend, which is not public, and are not part of `npm test`.
+- Every runtime dependency lives in `devDependencies` and is bundled into
+  `dist/` by `scripts/build.mjs` (esbuild), so `npm i -g jetlog-cli`
+  installs nothing else. The package has no library entry point, only the
+  `jetlog` binary. `files` is a strict whitelist (`dist/cli.js`,
+  `dist/chunks`, README, LICENSE); docs and examples are linked on GitHub.
+  Check a change with `npm pack --dry-run`.

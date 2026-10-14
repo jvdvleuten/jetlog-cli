@@ -46,7 +46,7 @@ program
   .version("0.1.0")
   .addHelpText(
     "after",
-    "\nAI assistants: `jetlog mcp` runs an MCP server. docs/AI.md in this package explains the tools,\n" +
+    "\nAI assistants: `jetlog mcp` runs an MCP server. https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/AI.md explains the tools,\n" +
       "which commands write to the account, and the confirm-first rule for those."
   );
 
@@ -151,7 +151,7 @@ program
   .option("--date-format <format>", "YMD | DMY | MDY (for ambiguous slash dates)", "YMD")
   .option(
     "--include-future",
-    "keep rows dated after today (by default, formats whose source can contain not-yet-flown rostered rows have them dropped, see docs/IMPORTERS.md)"
+    "keep rows dated after today (by default, formats whose source can contain not-yet-flown rostered rows have them dropped, see https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/IMPORTERS.md)"
   )
   .option("--profile <name>", "credential profile whose airport catalog and places are used when logged in", "default")
   .option("--base-url <url>", "override API base URL (for local dev)")
@@ -630,7 +630,7 @@ program
   .option(
     "--as-new",
     "materialize every row that would otherwise match an existing entry as an independent new entry instead " +
-      "(all-or-nothing for this run, see docs/IMPORTERS.md)"
+      "(all-or-nothing for this run, see https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/IMPORTERS.md)"
   )
   .option("--profile <name>", "credential profile", "default")
   .option("--base-url <url>", "override API base URL (for local dev)")

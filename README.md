@@ -37,7 +37,7 @@ npm install && npm run build && npm link
 
 These work without an account. Night time and distance-based figures are
 not computed without a login, because the package ships no airport data.
-[examples/flights.csv](examples/flights.csv) is a small sample file.
+[examples/flights.csv](https://github.com/jvdvleuten/jetlog-cli/blob/main/examples/flights.csv) is a small sample file; download it from GitHub to follow along.
 
 ```sh
 jetlog convert examples/flights.csv --from csv --self-role PIC -o payload.json
@@ -82,7 +82,7 @@ Claude Desktop, in `claude_desktop_config.json`:
 ```
 
 Run `jetlog login --scope write` once in a terminal so the server can reach
-your logbook. [docs/AI.md](docs/AI.md) has the full tool list, how the
+your logbook. [docs/AI.md](https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/AI.md) has the full tool list, how the
 confirm step works, and a short guide written for the assistant itself.
 
 ## Commands
@@ -112,7 +112,7 @@ confirm step works, and a short guide written for the assistant itself.
 | `jetlog push <file>` | Deprecated. Send a payload to the partner API with the key pair | partner keys |
 | `jetlog mcp` | Run the MCP server | optional |
 
-Every command has `--help`. [docs/COMMANDS.md](docs/COMMANDS.md) is the full
+Every command has `--help`. [docs/COMMANDS.md](https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/COMMANDS.md) is the full
 reference.
 
 ## Supported formats
@@ -135,7 +135,7 @@ Pass one of these to `--from`, or use `--from auto` to detect it from the file.
 | `foreflight` | ForeFlight CSV (best effort, convert only) |
 | `csv` | Any CSV with recognisable headers (convert only) |
 
-Details per format are in [docs/COMMANDS.md](docs/COMMANDS.md#jetlog-convert).
+Details per format are in [docs/COMMANDS.md](https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/COMMANDS.md#jetlog-convert).
 
 ## What writes to your logbook
 
@@ -173,19 +173,19 @@ under Settings > Connected Apps.
 
 ## Examples
 
-- [examples/flights.csv](examples/flights.csv): a small CSV to try
+- [examples/flights.csv](https://github.com/jvdvleuten/jetlog-cli/blob/main/examples/flights.csv): a small CSV to try
   `jetlog convert` with
-- [examples/payload.json](examples/payload.json): a Jetlog import payload
-- [examples/pilotlog-signatures/](examples/pilotlog-signatures/): copy the
+- [examples/payload.json](https://github.com/jvdvleuten/jetlog-cli/blob/main/examples/payload.json): a Jetlog import payload
+- [examples/pilotlog-signatures/](https://github.com/jvdvleuten/jetlog-cli/blob/main/examples/pilotlog-signatures/): copy the
   signatures from CL PILOTLOG on a Mac and attach them to your entries
 
 ## Documentation
 
-- [docs/COMMANDS.md](docs/COMMANDS.md): every command and option
-- [docs/AI.md](docs/AI.md): MCP setup, tools, and a guide for AI assistants
-- [docs/IMPORTERS.md](docs/IMPORTERS.md): how the format importers work and
+- [docs/COMMANDS.md](https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/COMMANDS.md): every command and option
+- [docs/AI.md](https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/AI.md): MCP setup, tools, and a guide for AI assistants
+- [docs/IMPORTERS.md](https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/IMPORTERS.md): how the format importers work and
   how to add one
-- [docs/TIMES.md](docs/TIMES.md): how flight times are computed, and known
+- [docs/TIMES.md](https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/TIMES.md): how flight times are computed, and known
   limitations
 - [JetlogAPI](https://github.com/jvdvleuten/JetlogAPI): the import payload
   format
@@ -194,7 +194,7 @@ under Settings > Connected Apps.
 
 ```sh
 npm install
-npm run build   # tsc to dist/
+npm run build   # esbuild bundle to dist/
 npm test        # vitest
 npm run dev -- convert examples/flights.csv --from csv   # run from source
 ```
