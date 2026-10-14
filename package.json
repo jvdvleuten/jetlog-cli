@@ -25,15 +25,9 @@
   "bin": {
     "jetlog": "./dist/cli.js"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": "./dist/index.js"
-  },
   "files": [
-    "dist",
-    "docs",
-    "examples",
+    "dist/cli.js",
+    "dist/chunks",
     "README.md",
     "LICENSE"
   ],
@@ -41,27 +35,26 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/build.mjs",
     "dev": "tsx src/cli.ts",
     "test": "vitest run",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "prepublishOnly": "rm -rf dist && npm run build && npm test"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.31.0",
-    "commander": "^15.0.0",
-    "csv-parse": "^7.0.3",
-    "fflate": "^0.8.3",
-    "unpdf": "^1.8.1",
-    "uqr": "^0.1.3",
-    "zod": "^4.6.5"
+    "prepublishOnly": "npm run build && npm test"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@types/node": "^24.0.0",
+    "commander": "^15.0.0",
+    "csv-parse": "^7.0.3",
+    "esbuild": "^0.28.2",
+    "fflate": "^0.8.3",
     "pdf-lib": "^1.17.1",
     "tsx": "^4.23.15",
     "typescript": "^5.7.2",
-    "vitest": "^5.0.3"
+    "unpdf": "^1.8.1",
+    "uqr": "^0.1.3",
+    "vitest": "^5.0.3",
+    "zod": "^4.6.5"
   },
   "mcpName": "io.github.jvdvleuten/jetlog"
 }
