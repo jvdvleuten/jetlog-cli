@@ -465,16 +465,34 @@ preview before deleting.
 
 ## Proposed changes
 
-An AI assistant connected through `jetlog mcp` proposes changes and applies
-them after you confirm (see [AI.md](AI.md)). These two commands do the same
-from a terminal:
+Targeted edits to existing entries, people and aircraft go through a
+propose, preview, apply flow. Proposing writes nothing. It needs
+`jetlog login --scope write`.
 
 ```sh
-jetlog changes show <id>     # preview and status of a proposal
-jetlog changes apply <id>    # preview, confirm, apply
+jetlog changes schema                 # JSON Schema of the propose payload
+jetlog changes propose payload.json   # or - for stdin; prints the preview and the change id
+jetlog changes show <id>              # preview and status of a proposal
+jetlog changes apply <id>             # preview, confirm, apply
 ```
 
-There is no command to propose a change. That is done through the MCP server.
+The payload is the one the MCP tool `propose_changes` takes, and
+`jetlog schema --changes` prints the same schema:
+
+```json
+{
+  "summary": "Correct the registration on the 2026-03-14 flight",
+  "operations": [
+    { "op": "update", "resource": "entry", "id": "<entry id>", "data": { "registration": "PH-EZA" } }
+  ]
+}
+```
+
+`propose` shows before and after per changed field and ends with the exact
+`jetlog changes apply <id>` command. `--json` prints the same as one JSON
+object (`id`, `status`, `summary`, `counts`, `expires_at`, `preview`, `next`).
+`apply` asks for confirmation. `--yes` skips the question, and an assistant
+passes it only after the pilot said yes to that preview in the chat.
 
 ## Partner API
 

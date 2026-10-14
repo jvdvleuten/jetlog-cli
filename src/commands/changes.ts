@@ -1,45 +1,114 @@
 /**
- * `jetlog changes show|apply`: human-facing CLI parity for the
- * AI-proposes/user-confirms pending-change flow (`src/mcp.ts`'s
- * `propose_changes`/`apply_changes`/`get_change_status` tools). Mostly
- * useful for testing that flow by hand: proposing is done by an AI client
- * (or `jetlog mcp` itself) via `POST /api/pending_changes`, not from here;
- * there's no `jetlog changes propose` command.
+ * `jetlog changes propose|show|apply`: the CLI side of the propose/confirm/apply flow, the same one the MCP
+ * tools `propose_changes`/`apply_changes`/`get_change_status` use. Propose validates the payload with the schema
+ * the MCP tool uses, stores a preview on the server and writes nothing. Apply is the only call that writes.
  */
-import { createInterface } from "node:readline/promises";
-import { applyChanges, getPendingChange, type PendingChange, type PendingChangePreviewEntry } from "../api/client.js";
+import { readFile } from "node:fs/promises";
+import {
+  applyChanges,
+  getPendingChange,
+  proposeChanges,
+  type PendingChange,
+  type PendingChangeOperationInput,
+  type PendingChangePreviewEntry
+} from "../api/client.js";
+import { parseProposeChanges } from "../changes-schema.js";
+import { confirm } from "./confirm.js";
 import { requireClient } from "./entries.js";
 import { sanitizeForTerminal } from "./output.js";
 
-async function confirm(message: string): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stderr });
-  try {
-    const answer = await rl.question(`${message} [y/N] `);
-    return /^y(es)?$/i.test(answer.trim());
-  } finally {
-    rl.close();
-  }
+type Log = (line: string) => void;
+const toStderr: Log = (line) => console.error(line);
+
+function formatValue(value: unknown): string {
+  if (value === undefined) return "(not set)";
+  return sanitizeForTerminal(JSON.stringify(value) ?? "null");
 }
 
-function printPreviewEntry(entry: PendingChangePreviewEntry): void {
+function printPreviewEntry(entry: PendingChangePreviewEntry, log: Log): void {
   const label = entry.op === "delete" ? "DELETE" : entry.op === "create" ? "create" : "update";
-  console.error(`  [${entry.index}] ${label} ${entry.resource} ${entry.id}`);
-  if (entry.changed_fields.length > 0) {
-    console.error(`        changed: ${entry.changed_fields.join(", ")}`);
+  log(`  [${entry.index}] ${label} ${sanitizeForTerminal(entry.resource)} ${sanitizeForTerminal(entry.id)}`);
+  const fields = entry.changed_fields.length > 0 ? entry.changed_fields : [];
+  if (fields.length === 0) return;
+  if (entry.op === "update" && entry.before && entry.after) {
+    for (const field of fields) {
+      log(`        ${sanitizeForTerminal(field)}: ${formatValue(entry.before[field])} -> ${formatValue(entry.after[field])}`);
+    }
+  } else {
+    log(`        changed: ${fields.map((f) => sanitizeForTerminal(f)).join(", ")}`);
   }
 }
 
-function printPendingChange(pc: PendingChange): void {
-  console.error(`id:      ${pc.id}`);
-  console.error(`status:  ${pc.status}`);
-  console.error(`summary: ${pc.summary}`);
-  console.error(
+function printPendingChange(pc: PendingChange, log: Log = toStderr): void {
+  log(`id:      ${pc.id}`);
+  log(`status:  ${pc.status}`);
+  log(`summary: ${sanitizeForTerminal(pc.summary)}`);
+  log(
     `counts:  ${pc.counts.creates} create(s), ${pc.counts.updates} update(s), ${pc.counts.deletes} delete(s)` +
       (pc.counts.deletes > 0 ? "  <-- includes deletion(s)" : "")
   );
-  console.error(`expires: ${pc.expires_at}`);
-  console.error("operations:");
-  for (const entry of pc.preview) printPreviewEntry(entry);
+  log(`expires: ${pc.expires_at}`);
+  log("operations:");
+  for (const entry of pc.preview) printPreviewEntry(entry, log);
+}
+
+async function readPayloadText(source: string | undefined): Promise<string> {
+  if (source !== undefined && source !== "-") return readFile(source, "utf8");
+  if (source === undefined && process.stdin.isTTY) {
+    throw new Error("no payload given. Pass a file, or pipe JSON on stdin (`jetlog changes propose -`). See `jetlog changes propose --help`.");
+  }
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+export async function changesPropose(opts: {
+  profile: string;
+  baseUrl?: string;
+  file?: string;
+  json?: boolean;
+}): Promise<void> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readPayloadText(opts.file));
+  } catch (err) {
+    throw new Error(`could not read the payload as JSON: ${(err as Error).message}`);
+  }
+  const parsed = parseProposeChanges(raw);
+  if (!parsed.ok) {
+    const lines = ["the payload is not valid, nothing was sent:", ...parsed.errors.map((e) => `  ${e}`), "Run `jetlog changes schema` for the expected shape."];
+    throw new Error(lines.join("\n"));
+  }
+
+  const client = await requireClient(opts.profile, opts.baseUrl);
+  const result = await proposeChanges(client, parsed.value.summary, parsed.value.operations as PendingChangeOperationInput[]);
+
+  if (!result.ok) {
+    if (result.code === "scope_missing" || result.code === "insufficient_scope") {
+      const profileFlag = opts.profile === "default" ? "" : ` --profile ${opts.profile}`;
+      throw new Error(
+        `this login cannot propose changes (it needs write access${result.missingScopes?.length ? ` and the ${result.missingScopes.join(", ")} scope` : ""}). ` +
+          `Ask the pilot to run \`jetlog login --scope write${profileFlag}\` and to switch on "Make changes to your logbook" in the Jetlog app first. Nothing was changed.`
+      );
+    }
+    const details = (result.errors ?? []).map(
+      (e) => `\n  operation ${e.index ?? "?"}${e.field ? `, ${sanitizeForTerminal(e.field)}` : ""}: ${sanitizeForTerminal(e.message)}`
+    );
+    const code = result.code && !result.message.includes(result.code) ? ` (${result.code})` : "";
+    throw new Error(`${result.message}${code}${details.join("")}\nNothing was changed.`);
+  }
+
+  const pc = result.pendingChange;
+  const profileFlag = opts.profile === "default" ? "" : ` --profile ${opts.profile}`;
+  const next = `jetlog changes apply ${pc.id}${profileFlag}`;
+  if (opts.json) {
+    console.log(JSON.stringify({ id: pc.id, status: pc.status, summary: pc.summary, counts: pc.counts, expires_at: pc.expires_at, preview: pc.preview, next }, null, 2));
+    return;
+  }
+  printPendingChange(pc, (line) => console.log(line));
+  console.log("");
+  console.log("Nothing has been written yet. Show this preview to the pilot. After an explicit yes, run:");
+  console.log(`  ${next}`);
 }
 
 export async function changesShow(opts: { profile: string; baseUrl?: string; id: string; json?: boolean }): Promise<void> {

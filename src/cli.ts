@@ -2,6 +2,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { Command } from "commander";
+import { getProposeChangesJsonSchema } from "./changes-schema.js";
 import { getJsonSchema, formatJsonSchemaAsMarkdown } from "./json-schema.js";
 import { validatePayload, payloadSchema, type ImportMode } from "./schema.js";
 import { convertFile, convertFiles, type ConvertFormat, type DateFormat } from "./convert/index.js";
@@ -19,7 +20,7 @@ import { aircraftList } from "./commands/aircraft.js";
 import { runExport } from "./commands/export.js";
 import { runImport } from "./commands/import.js";
 import { batchesList, batchesRemove, batchesRemoveAllCli } from "./commands/batches.js";
-import { changesShow, changesApply } from "./commands/changes.js";
+import { changesShow, changesApply, changesPropose } from "./commands/changes.js";
 import { PUSH_DESCRIPTION, runPush } from "./commands/push.js";
 import { attachmentsAdd, attachmentsGet, attachmentsList, attachmentsRemove } from "./commands/attachments.js";
 import { photosGet, photosSet } from "./commands/photos.js";
@@ -100,8 +101,11 @@ program
   .command("schema")
   .description("Print the JSON Schema for the Jetlog import payload")
   .option("--format <format>", "json-schema or markdown", "json-schema")
-  .action((opts: { format: string }) => {
-    if (opts.format === "markdown") {
+  .option("--changes", "print the JSON Schema of the `jetlog changes propose` payload instead")
+  .action((opts: { format: string; changes?: boolean }) => {
+    if (opts.changes) {
+      console.log(JSON.stringify(getProposeChangesJsonSchema(), null, 2));
+    } else if (opts.format === "markdown") {
       console.log(formatJsonSchemaAsMarkdown());
     } else {
       console.log(JSON.stringify(getJsonSchema(), null, 2));
@@ -891,10 +895,48 @@ signatures
 const changes = program
   .command("changes")
   .description(
-    "Inspect/apply AI-proposed pending changes (requires `jetlog login --scope write`), mostly for " +
-      "testing the propose/apply flow by hand; proposing itself is done by an AI client or `jetlog mcp`, " +
-      "not from here."
+    "Propose, inspect and apply targeted edits to existing entries, people and aircraft " +
+      "(requires `jetlog login --scope write`). Propose writes nothing; apply writes after a confirmation."
   );
+
+changes
+  .command("propose")
+  .description("Propose changes from a JSON payload (file or stdin). Writes nothing, prints a preview and the apply command")
+  .argument("[file]", "JSON payload file, or - (the default) for stdin")
+  .option("--json", "machine-readable output")
+  .option("--profile <name>", "credential profile", "default")
+  .option("--base-url <url>", "override API base URL (for local dev)")
+  .addHelpText(
+    "after",
+    `
+Payload: {"summary": "...", "operations": [{"op", "resource", "id", "data"}]}.
+op is create, update or delete. resource is entry, person, aircraft, fstd,
+entry_attachment or signature_link. Print the full JSON Schema with
+\`jetlog changes schema\`. Times are UTC, "HH:MM".
+
+Example, correct the registration of one entry:
+
+  echo '{
+    "summary": "Correct the registration on the 2026-03-14 flight",
+    "operations": [
+      { "op": "update", "resource": "entry", "id": "<entry id>", "data": { "registration": "PH-EZA" } }
+    ]
+  }' | jetlog changes propose -
+
+Nothing is written. The preview shows before and after per field, plus the
+change id. Show it to the pilot, and only after an explicit yes run
+\`jetlog changes apply <id>\`. Needs \`jetlog login --scope write\`.`
+  )
+  .action(async (file: string | undefined, opts: { json?: boolean; profile: string; baseUrl?: string }) => {
+    await runReadCommand(() => changesPropose({ profile: opts.profile, baseUrl: opts.baseUrl, file, json: opts.json }));
+  });
+
+changes
+  .command("schema")
+  .description("Print the JSON Schema of the `changes propose` payload")
+  .action(() => {
+    console.log(JSON.stringify(getProposeChangesJsonSchema(), null, 2));
+  });
 
 changes
   .command("show")
@@ -911,7 +953,7 @@ changes
   .command("apply")
   .description("Apply a pending change for real, previewing and confirming first")
   .argument("<id>", "pending change id")
-  .option("--yes", "skip the confirmation prompt")
+  .option("--yes", "skip the confirmation prompt. Agents: pass this only after the pilot said yes to this exact preview in chat")
   .option("--operation-indices <indices>", "comma-separated subset of operation indices to apply")
   .option("--profile <name>", "credential profile", "default")
   .option("--base-url <url>", "override API base URL (for local dev)")

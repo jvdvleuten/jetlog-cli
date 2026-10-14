@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { saveProfile } from "../../src/auth/credentials.js";
-import { changesApply, changesShow } from "../../src/commands/changes.js";
+import { changesApply, changesPropose, changesShow } from "../../src/commands/changes.js";
+import { getProposeChangesJsonSchema } from "../../src/changes-schema.js";
 import { TestServer, jsonHandler } from "../helpers/test-server.js";
 
 const samplePendingChange = {
@@ -130,5 +131,125 @@ describe("changes commands", () => {
       vi.restoreAllMocks();
       await server.stop();
     }
+  });
+
+  describe("propose", () => {
+    const payload = {
+      summary: "Correct the registration",
+      operations: [{ op: "update", resource: "entry", id: "e-1", data: { registration: "PH-EZA" } }]
+    };
+    const proposed = {
+      ...samplePendingChange,
+      summary: "Correct the registration",
+      operations: payload.operations,
+      preview: [
+        {
+          index: 0,
+          op: "update",
+          resource: "entry",
+          id: "e-1",
+          before: { registration: "PH-EZB" },
+          after: { registration: "PH-EZA" },
+          changed_fields: ["registration"]
+        }
+      ],
+      counts: { creates: 0, updates: 1, deletes: 0 }
+    };
+    let file: string;
+
+    async function writePayload(value: unknown): Promise<void> {
+      file = join(dir, "payload.json");
+      await writeFile(file, typeof value === "string" ? value : JSON.stringify(value));
+    }
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it("sends the payload, prints before and after per field and the exact apply command", async () => {
+      const out: string[] = [];
+      vi.spyOn(console, "log").mockImplementation((...a: unknown[]) => void out.push(a.join(" ")));
+      const server = new TestServer([jsonHandler(201, { pending_change: proposed })]);
+      await server.start();
+      await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+      await writePayload(payload);
+      try {
+        await changesPropose({ profile: "default", file });
+        expect(server.requests).toHaveLength(1);
+        expect(server.requests[0]!.method).toBe("POST");
+        expect(server.requests[0]!.path).toBe("/api/pending_changes");
+        expect(server.requests[0]!.body).toEqual(payload);
+        const text = out.join("\n");
+        expect(text).toContain('registration: "PH-EZB" -> "PH-EZA"');
+        expect(text).toContain("jetlog changes apply pc-1");
+        expect(text).toContain("Nothing has been written yet");
+      } finally {
+        await server.stop();
+      }
+    });
+
+    it("prints machine-readable output with --json", async () => {
+      const out: string[] = [];
+      vi.spyOn(console, "log").mockImplementation((...a: unknown[]) => void out.push(a.join(" ")));
+      const server = new TestServer([jsonHandler(201, { pending_change: proposed })]);
+      await server.start();
+      await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+      await writePayload(payload);
+      try {
+        await changesPropose({ profile: "default", file, json: true });
+        const parsed = JSON.parse(out.join("\n"));
+        expect(parsed.id).toBe("pc-1");
+        expect(parsed.next).toBe("jetlog changes apply pc-1");
+        expect(parsed.counts.updates).toBe(1);
+        expect(parsed.preview[0].after).toEqual({ registration: "PH-EZA" });
+      } finally {
+        await server.stop();
+      }
+    });
+
+    it("rejects an invalid payload before any request is made", async () => {
+      const server = new TestServer([]);
+      await server.start();
+      await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+      await writePayload({ summary: "x", operations: [{ op: "rename", resource: "entry" }] });
+      try {
+        await expect(changesPropose({ profile: "default", file })).rejects.toThrow(/operations\.0\.op/);
+        expect(server.requests).toHaveLength(0);
+      } finally {
+        await server.stop();
+      }
+    });
+
+    it("rejects text that is not JSON", async () => {
+      await writePayload("not json");
+      await expect(changesPropose({ profile: "default", file })).rejects.toThrow(/could not read the payload as JSON/);
+    });
+
+    it("tells the pilot how to get write access on an insufficient_scope answer", async () => {
+      const server = new TestServer([jsonHandler(403, { error: "insufficient_scope" })]);
+      await server.start();
+      await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+      await writePayload(payload);
+      try {
+        await expect(changesPropose({ profile: "default", file })).rejects.toThrow(/jetlog login --scope write/);
+      } finally {
+        await server.stop();
+      }
+    });
+
+    it("surfaces a server validation error", async () => {
+      const server = new TestServer([jsonHandler(422, { error: { code: "validation_failed", message: "invalid", errors: [{ index: 0, field: "registration", message: "bad field" }] } })]);
+      await server.start();
+      await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+      await writePayload(payload);
+      try {
+        await expect(changesPropose({ profile: "default", file })).rejects.toThrow(/operation 0, registration: bad field/);
+      } finally {
+        await server.stop();
+      }
+    });
+
+    it("exposes a JSON Schema for the payload", () => {
+      const schema = getProposeChangesJsonSchema() as { properties: Record<string, unknown> };
+      expect(Object.keys(schema.properties)).toEqual(["summary", "operations"]);
+    });
   });
 });

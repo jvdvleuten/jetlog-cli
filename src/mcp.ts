@@ -38,6 +38,7 @@ import { downloadRoot, fetchAttachment, saveInsideRoot } from "./attachments/dow
 import { sanitizeForTerminal } from "./commands/output.js";
 import { orNotFound } from "./commands/format.js";
 import { PARTNER_MIGRATION_URL } from "./commands/push.js";
+import { proposeChangesShape } from "./changes-schema.js";
 
 const DEFAULT_BASE_URL = "https://jetlog.app";
 
@@ -1044,27 +1045,7 @@ export async function createMcpServer(): Promise<McpServer> {
           "person_ids of OTHER crew. " +
           "A \"delete\" is a soft delete (is_deleted: true) and is reported as such in the preview, so " +
           "call this out explicitly when summarizing deletes to the user.",
-        inputSchema: {
-          summary: z.string().describe("A short, human-readable summary of what this change does."),
-          operations: z
-            .array(
-              z.object({
-                op: z.enum(["create", "update", "delete"]),
-                resource: z.enum(["entry", "person", "aircraft", "fstd", "entry_attachment", "signature_link"]),
-                id: z.string().optional().describe("Required for update/delete; omit for create."),
-                data: z.record(z.string(), z.unknown()).optional(),
-                add_self: z
-                  .boolean()
-                  .optional()
-                  .describe(
-                    "Entry creates only. Default true: the server adds the pilot to `people` with their default role if missing. " +
-                      "Set false ONLY when the pilot was genuinely not crew on this flight."
-                  )
-              })
-            )
-            .max(200)
-            .describe("The proposed operations, at most 200.")
-        }
+        inputSchema: proposeChangesShape
       },
       async ({ summary, operations }) => {
         const blocked = accessGate("write");
