@@ -23,7 +23,7 @@
   ],
   "type": "module",
   "bin": {
-    "jetlog": "./dist/cli.js"
+    "jetlog": "dist/cli.js"
   },
   "files": [
     "dist/cli.js",
