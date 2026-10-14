@@ -39,6 +39,7 @@ import { sanitizeForTerminal } from "./commands/output.js";
 import { orNotFound } from "./commands/format.js";
 import { PARTNER_MIGRATION_URL } from "./commands/push.js";
 import { proposeChangesShape } from "./changes-schema.js";
+import { VERSION } from "./version.js";
 
 const DEFAULT_BASE_URL = "https://jetlog.app";
 
@@ -204,7 +205,7 @@ export async function createMcpServer(): Promise<McpServer> {
         : "read";
 
   const server = new McpServer(
-    { name: "jetlog-cli", version: "0.1.0" },
+    { name: "jetlog-cli", version: VERSION },
     { instructions: accessInstructions(access, readProfile) }
   );
 

@@ -1,7 +1,9 @@
 // Bundles the CLI into dist/.
 // All runtime dependencies are bundled, so the published package has none.
 import { build } from "esbuild";
-import { chmodSync, rmSync } from "node:fs";
+import { chmodSync, readFileSync, rmSync } from "node:fs";
+
+const { version } = JSON.parse(readFileSync("package.json", "utf8"));
 
 rmSync("dist", { recursive: true, force: true });
 
@@ -12,6 +14,9 @@ const common = {
   format: "esm",
   minify: true,
   legalComments: "none",
+  // One source for the version: package.json. src/version.ts falls back to reading it when run from source.
+  define: { __JETLOG_VERSION__: JSON.stringify(version) },
+  loader: { ".md": "text" },
   // Bundled CommonJS dependencies call require() for node builtins.
   banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);' }
 };

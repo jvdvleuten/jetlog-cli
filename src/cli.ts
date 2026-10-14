@@ -2,6 +2,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { Command } from "commander";
+import { VERSION } from "./version.js";
 import { getProposeChangesJsonSchema } from "./changes-schema.js";
 import { getJsonSchema, formatJsonSchemaAsMarkdown } from "./json-schema.js";
 import { validatePayload, payloadSchema, type ImportMode } from "./schema.js";
@@ -44,7 +45,7 @@ const program = new Command();
 program
   .name("jetlog")
   .description("Convert, import and read pilot logbook data for Jetlog (https://jetlog.app)")
-  .version("0.1.0")
+  .version(VERSION)
   .addHelpText(
     "after",
     "\nAI assistants: `jetlog mcp` runs an MCP server. https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/AI.md explains the tools,\n" +

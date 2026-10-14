@@ -11,9 +11,11 @@
  * `x-jetlog-client` + a User-Agent instead.
  */
 
+import { VERSION } from "../version.js";
+
 export const DEFAULT_BASE_URL = "https://jetlog.app";
 
-export const CLI_VERSION = "0.1.0";
+export const CLI_VERSION = VERSION;
 
 export class ApiError extends Error {
   readonly status: number;
