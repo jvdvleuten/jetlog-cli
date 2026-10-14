@@ -1,0 +1,24 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.jvdvleuten/jetlog",
+  "description": "Read your Jetlog pilot logbook and propose changes that you confirm. Convert and import logbooks.",
+  "repository": {
+    "url": "https://github.com/jvdvleuten/jetlog-cli",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "websiteUrl": "https://jetlog.app/docs/ai-assistants-and-the-cli",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "jetlog-cli",
+      "version": "0.1.0",
+      "runtimeArguments": [],
+      "packageArguments": [{ "type": "positional", "value": "mcp" }],
+      "transport": { "type": "stdio" }
+    }
+  ],
+  "remotes": [
+    { "type": "streamable-http", "url": "https://jetlog.app/mcp" }
+  ]
+}
