@@ -25,6 +25,14 @@ jetlog --help
 
 Or run it without installing: `npx jetlog-cli <command>`.
 
+From source instead (for development):
+
+```sh
+git clone https://github.com/jvdvleuten/jetlog-cli.git
+cd jetlog-cli
+npm install && npm run build && npm link
+```
+
 ## Quick start
 
 These work without an account. Night time and distance-based figures are

@@ -11,7 +11,7 @@ Jetlog import payload rules:
   touchdown, on_blocks) are "HH:MM" in zulu (UTC), relative to "date".
 - Airports (from, to, actual_from, actual_to) should be ICAO codes when known;
   a recognised 3-letter IATA code is also accepted.
-- registration is the aircraft tail number, e.g. "PH-BXD".
+- registration is the aircraft tail number, e.g. "PH-XAA".
 - people is a list of { ref_id, role }. Use ref_id "SELF" for the pilot
   filling in the logbook themselves instead of adding them to the top-level
   people list. Other crew need a matching entry in the top-level "people"

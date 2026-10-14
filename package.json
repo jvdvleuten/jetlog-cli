@@ -44,7 +44,8 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
     "test": "vitest run",
-    "lint": "tsc --noEmit -p tsconfig.json"
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "rm -rf dist && npm run build && npm test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -63,5 +64,6 @@
     "tsx": "^4.23.15",
     "typescript": "^5.7.2",
     "vitest": "^5.0.3"
-  }
+  },
+  "mcpName": "io.github.jvdvleuten/jetlog"
 }
