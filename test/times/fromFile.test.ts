@@ -14,11 +14,13 @@ const genericCsv = readFileSync(new URL("../fixtures/generic.csv", import.meta.u
 describe("computeFileEntryTimes", () => {
   it("falls back to the payload adapter for plain csv (no ImportResult)", async () => {
     // The generic CSV fixture has no SELF-role person assigned (no --self-role
-    // equivalent passed here), so every row is skipped, this still exercises
-    // the fallback path (payloadEntryToCalcEntry) without throwing.
+    // passed here): rows are still calculated without a role, and the
+    // all-rows-unmatched warning fires. Exercises payloadEntryToCalcEntry.
     const result = await computeFileEntryTimes("csv", genericCsv);
-    expect(result.calculated).toHaveLength(0);
-    expect(result.skippedNoSelfPersonCount).toBe(3);
+    expect(result.calculated).toHaveLength(3);
+    expect(result.calculated.every((e) => e.selfRole === undefined)).toBe(true);
+    expect(result.calculated.every((e) => e.detailedTimes.pilotInCommandRole === 0 || e.detailedTimes.pilotInCommandRole === undefined)).toBe(true);
+    expect(result.parseWarnings.some((w) => w.includes("no pilot-function time"))).toBe(true);
   });
 
   it("uses the richer ImportedEntry adapter for a ported-importer format (deeplink-json)", async () => {
@@ -39,30 +41,46 @@ describe("computeFileEntryTimes", () => {
 
     const result = await computeFileEntryTimes("deeplink-json", content);
     expect(result.calculated).toHaveLength(1);
-    expect(result.skippedNoSelfPersonCount).toBe(0);
+    expect(result.parseWarnings).toEqual([]);
     expect(result.calculated[0]!.detailedTimes.pilotInCommandRole).toBe(90);
     expect(result.calculated[0]!.selfRole).toBe("pilotInCommand");
   });
 
-  it("skips (and counts) entries with no SELF person via the rich path", async () => {
+  const flightRow = (people: unknown[]) => ({
+    date: "2026-01-01",
+    type: "flight",
+    from: "EHAM",
+    to: "EGLL",
+    flight_number: "KL123",
+    off_blocks: "10:00",
+    on_blocks: "11:30",
+    people
+  });
+
+  it("calculates an entry with no SELF person without a role: block counts, no PIC", async () => {
     const content = JSON.stringify({
-      entries: [
-        {
-          date: "2026-01-01",
-          type: "flight",
-          from: "EHAM",
-          to: "EGLL",
-          flight_number: "KL123",
-          off_blocks: "10:00",
-          on_blocks: "11:30",
-          people: [{ ref_id: "other-person", role: "PIC" }]
-        }
-      ]
+      entries: [flightRow([{ ref_id: "SELF", role: "PIC" }]), flightRow([{ ref_id: "other-person", role: "PIC" }])]
     });
 
     const result = await computeFileEntryTimes("deeplink-json", content);
-    expect(result.calculated).toHaveLength(0);
-    expect(result.skippedNoSelfPersonCount).toBe(1);
+    expect(result.calculated).toHaveLength(2);
+    const noSelf = result.calculated[1]!;
+    expect(noSelf.selfRole).toBeUndefined();
+    expect(noSelf.detailedTimes.totalTimeOfFlight).toBe(90);
+    expect(noSelf.detailedTimes.pilotInCommandRole).toBeFalsy();
+    // One row has SELF, so no warning.
+    expect(result.parseWarnings).toEqual([]);
+  });
+
+  it("warns (not errors) when no row has the self person", async () => {
+    const content = JSON.stringify({ entries: [flightRow([{ ref_id: "other-person", role: "PIC" }])] });
+
+    const result = await computeFileEntryTimes("deeplink-json", content, undefined, { selfName: "Nobody Here" });
+    expect(result.calculated).toHaveLength(1);
+    expect(result.calculated[0]!.detailedTimes.totalTimeOfFlight).toBe(90);
+    expect(result.parseWarnings).toHaveLength(1);
+    expect(result.parseWarnings[0]).toContain('--self "Nobody Here" matched no crew member');
+    expect(result.parseWarnings[0]).toContain("no pilot-function time");
   });
 });
 
@@ -330,13 +348,16 @@ describe("computeProfileTotals with the logged-in airport catalog", () => {
     }
   });
 
-  it("logs an FSTD entry with no self person row as a trainee session (not skipped)", async () => {
+  it("logs an FSTD entry with no self person row as a trainee session, and a flight without one as role-free time", async () => {
     const fstd = { id: "s1", type: "fstd", date: "2024-12-15", people: [], start_time: "09:00", end_time: "11:00", derived: { date: "2024-12-15" } };
     const flightNoSelf = { ...apiEntry("e9", "EHAM", "EGLL"), people: [] };
     const totals = await computeProfileTotals(await client([fstd, flightNoSelf]), { profile: "default" });
     expect(totals.totalFstdSessionMinutes).toBe(120);
     expect(totals.totalFSTDTraineeSessions).toBe(1);
-    expect(totals.skippedNoSelfPersonCount).toBe(1); // only the flight
+    // The flight with no self row is no longer skipped: its block counts, no pilot-function bucket does.
+    expect(totals).not.toHaveProperty("skippedNoSelfPersonCount");
+    expect(totals.totalBlockMinutes).toBe(90);
+    expect(totals.totalPicMinutes + totals.totalCoPilotMinutes + totals.totalDualMinutes).toBe(0);
   });
 
   it("filters by the derived date from the server", async () => {

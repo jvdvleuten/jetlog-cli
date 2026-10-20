@@ -25,9 +25,11 @@ export { inPeriod, type Period } from "./period.js";
  * (`EntryTimesCalculator.calculatorVersion`) and the backend
  * (`Jetlog.Times.Persistence`). 3 = one airport resolver (IATA, lowercase,
  * padded, local-code and user-place codes now resolve for night time) plus
- * derived-date bucketing.
+ * derived-date bucketing. 4 = a flight or bulk row where the user is not in
+ * the crew is calculated like an `unknown` role (role-free times, no
+ * pilot-function time) instead of an empty result.
  */
-export const CALCULATOR_VERSION = 3;
+export const CALCULATOR_VERSION = 4;
 export { aggregateTotals, applyAtplCaps, type Totals, type EntryTimesForTotals, type AtplCaps, type FstdDeviceCategory } from "./aggregator.js";
 export { payloadEntryToCalcEntry, PAYLOAD_ROLE_TO_CALC_ROLE } from "./adapter.js";
 export { mapRoleCode, mapApiRoleCode, mapImportedRoleCode, WIRE_ROLE_TO_CALC_ROLE, ACTIVE_CREW_ROLES } from "./roleCodes.js";

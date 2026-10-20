@@ -46,7 +46,6 @@ function routeCodes(calcEntry: Parameters<typeof derivedRoute>[0]): { fromIcao?:
 
 export interface FileEntryTimesResult {
   calculated: EntryTimesForTotals[];
-  skippedNoSelfPersonCount: number;
   parseWarnings: string[];
   /** Plain notes for stderr (not parse problems), e.g. that night time could not be computed. */
   notes: string[];
@@ -109,8 +108,9 @@ function airportDataNotes(calculated: readonly EntryTimesForTotals[], index?: Ai
  * entry. Prefers the richer `ImportResult` (via `importedEntryToCalcEntry`)
  * when `convertFile` resolved to one of the ported importers; falls back to
  * the lossy public-payload adapter for `csv`/`foreflight`/`jetlog`, which
- * have no `ImportResult`. Entries with no resolvable "self" person are
- * skipped (counted, not thrown).
+ * have no `ImportResult`. Entries with no "self" person are calculated
+ * without a role (role-free times only, like the logged-in path); when NO entry
+ * has one, a warning says the self name or role matched no crew member.
  */
 export interface FileSelfOptions {
   /** Role to credit yourself on every entry, for formats whose rows do not say (csv, foreflight). */
@@ -133,15 +133,10 @@ export async function computeFileEntryTimes(
     : result.skipped.map((row) => `skipped row ${row.row}: ${row.reason}`);
 
   const calculated: EntryTimesForTotals[] = [];
-  let skippedNoSelfPersonCount = 0;
 
   if (result.importResult) {
     for (const entry of result.importResult.entries) {
       const adapted = importedEntryToCalcEntry(entry);
-      if (!adapted) {
-        skippedNoSelfPersonCount++;
-        continue;
-      }
       const ctx: CalcContext = {
         selfRole: adapted.selfRole,
         activeCrewCount: adapted.activeCrewCount,
@@ -169,10 +164,6 @@ export async function computeFileEntryTimes(
 
     for (const entry of validated.payload.entries ?? []) {
       const adapted = payloadEntryToCalcEntry(entry);
-      if (!adapted) {
-        skippedNoSelfPersonCount++;
-        continue;
-      }
       const ctx: CalcContext = {
         selfRole: adapted.selfRole,
         activeCrewCount: adapted.activeCrewCount,
@@ -191,7 +182,16 @@ export async function computeFileEntryTimes(
     }
   }
 
-  return { calculated, skippedNoSelfPersonCount, parseWarnings, notes: airportDataNotes(calculated) };
+  if (calculated.length > 0 && calculated.every((e) => e.selfRole === undefined)) {
+    const how = self.selfName
+      ? `--self "${self.selfName}" matched no crew member in the file`
+      : self.selfRole
+        ? "no entry has a person marked as you"
+        : "no entry has a person marked as you (pass --self \"<name>\" or --self-role <role>)";
+    parseWarnings.push(`${how}, so the totals carry no pilot-function time (PIC, co-pilot, dual, ...); only role-free time (block, air, night, IFR, cross-country) is counted.`);
+  }
+
+  return { calculated, parseWarnings, notes: airportDataNotes(calculated) };
 }
 
 export async function computeFileTotals(
@@ -240,7 +240,6 @@ async function fetchAllOwnEntries(client: ApiClient): Promise<Record<string, unk
 export interface ProfileTotalsResult extends Totals {
   atplCaps: AtplCaps;
   unresolvedAirports: UnresolvedAirportsSummary;
-  skippedNoSelfPersonCount: number;
   notes: string[];
 }
 
@@ -266,14 +265,11 @@ export async function computeProfileTotals(
   const aircraftLookups = await buildApiAircraftLookup(client);
 
   const calculated: EntryTimesForTotals[] = [];
-  let skippedNoSelfPersonCount = 0;
 
+  // No entry is skipped: a flight where the user is not in the crew still
+  // counts its role-free times (calculatorVersion 4).
   for (const entry of entries) {
     const adapted = apiEntryToCalcEntry(entry, me.self_person_id);
-    if (!adapted) {
-      skippedNoSelfPersonCount++;
-      continue;
-    }
     const ctx: CalcContext = {
       selfRole: adapted.selfRole,
       activeCrewCount: adapted.activeCrewCount,
@@ -294,5 +290,5 @@ export async function computeProfileTotals(
   const totals = aggregateTotals(calculated, { lookupAirport, period: opts.period });
   const atplCaps = applyAtplCaps(totals);
   const unresolvedAirports = summarizeUnresolved(entriesInScope(calculated, opts.period));
-  return { ...totals, atplCaps, unresolvedAirports, skippedNoSelfPersonCount, notes: airportDataNotes(calculated, index, opts.period) };
+  return { ...totals, atplCaps, unresolvedAirports, notes: airportDataNotes(calculated, index, opts.period) };
 }

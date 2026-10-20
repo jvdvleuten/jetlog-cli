@@ -1,5 +1,5 @@
 {
-  "calculatorVersion" : 3,
+  "calculatorVersion" : 4,
   "cases" : [
     {
       "category" : "aircraft_classification",
@@ -21942,15 +21942,22 @@
       "expected" : {
         "derivedDate" : "2024-06-15",
         "detailedTimes" : {
-
+          "ifr" : 120,
+          "night" : 0,
+          "totalTimeOfFlight" : 120
         },
         "easaTimesSigned" : {
-
+          "ifr" : 120,
+          "night" : 0,
+          "totalTimeOfFlight" : 120
         },
         "easaTimesUnsigned" : {
-
+          "ifr" : 120,
+          "night" : 0,
+          "totalTimeOfFlight" : 120
         },
         "inPeriod" : null,
+        "night" : 0,
         "resolved" : {
           "from" : {
             "hasPosition" : true,
@@ -22019,6 +22026,325 @@
         ]
       },
       "name" : "missing_no_self_person"
+    },
+    {
+      "category" : "missing_data",
+      "expected" : {
+        "derivedDate" : "2024-01-01",
+        "detailedTimes" : {
+          "crossCountry" : 300,
+          "ifr" : 240,
+          "multiPilot" : 300,
+          "night" : 90,
+          "totalTimeOfFlight" : 300
+        },
+        "easaTimesSigned" : {
+          "ifr" : 240,
+          "multiPilot" : 300,
+          "night" : 90,
+          "totalTimeOfFlight" : 300
+        },
+        "easaTimesUnsigned" : {
+          "ifr" : 240,
+          "multiPilot" : 300,
+          "night" : 90,
+          "totalTimeOfFlight" : 300
+        },
+        "inPeriod" : null,
+        "night" : 90,
+        "resolved" : {
+          "from" : null,
+          "to" : null
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 1,
+        "aircraft" : {
+          "easaCertification" : "MP",
+          "engineCount" : 2,
+          "icaoType" : "A320",
+          "registration" : "(bulk, no registration)"
+        },
+        "catalog" : [
+
+        ],
+        "entry" : {
+          "aircraftIcaoCode" : "A320",
+          "date" : "2024-01-01",
+          "ifr" : true,
+          "isBulk" : true,
+          "isImportedFromOtherLogbook" : true,
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "804EECAB-2B03-4B4A-A8C3-2CB7986407E5",
+              "role" : "pilotInCommand"
+            }
+          ],
+          "type" : "flight",
+          "updateFlightData" : false
+        },
+        "manualTimes" : {
+          "coPilot" : 120,
+          "crossCountry" : 300,
+          "dual" : 60,
+          "ifr" : 240,
+          "instructor" : 60,
+          "night" : 90,
+          "pilotInCommand" : 300,
+          "totalTimeOfFlight" : 300
+        },
+        "period" : null,
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "missing_no_self_person_bulk_imported_columns"
+    },
+    {
+      "category" : "missing_data",
+      "expected" : {
+        "derivedDate" : "2024-01-01",
+        "detailedTimes" : {
+          "ifr" : 4800,
+          "night" : 1800,
+          "totalTimeOfFlight" : 7200
+        },
+        "easaTimesSigned" : {
+          "ifr" : 4800,
+          "night" : 1800,
+          "totalTimeOfFlight" : 7200
+        },
+        "easaTimesUnsigned" : {
+          "ifr" : 4800,
+          "night" : 1800,
+          "totalTimeOfFlight" : 7200
+        },
+        "inPeriod" : null,
+        "night" : 1800,
+        "resolved" : {
+          "from" : null,
+          "to" : null
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+
+        ],
+        "entry" : {
+          "date" : "2024-01-01",
+          "ifr" : true,
+          "isBulk" : true,
+          "isImportedFromOtherLogbook" : true,
+          "people" : [
+
+          ],
+          "type" : "flight",
+          "updateFlightData" : false
+        },
+        "manualTimes" : {
+          "ifr" : 4800,
+          "night" : 1800,
+          "pilotInCommand" : 7200,
+          "totalTimeOfFlight" : 7200
+        },
+        "period" : null,
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "missing_no_self_person_bulk_remainder_empty_crew"
+    },
+    {
+      "category" : "missing_data",
+      "expected" : {
+        "derivedDate" : "2024-06-15",
+        "detailedTimes" : {
+          "ifr" : 75,
+          "night" : 30,
+          "totalTimeOfFlight" : 120
+        },
+        "easaTimesSigned" : {
+          "ifr" : 75,
+          "night" : 30,
+          "totalTimeOfFlight" : 120
+        },
+        "easaTimesUnsigned" : {
+          "ifr" : 75,
+          "night" : 30,
+          "totalTimeOfFlight" : 120
+        },
+        "inPeriod" : null,
+        "night" : 30,
+        "resolved" : {
+          "from" : {
+            "hasPosition" : true,
+            "identity" : "EHAM",
+            "lat" : 52.3086,
+            "lon" : 4.7639,
+            "timezone" : null
+          },
+          "to" : {
+            "hasPosition" : true,
+            "identity" : "LFPG",
+            "lat" : 49.0097,
+            "lon" : 2.5479,
+            "timezone" : null
+          }
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+          {
+            "iata" : null,
+            "icao" : "EHAM",
+            "id" : "00000000-0000-4000-8001-000000000001",
+            "isDeleted" : false,
+            "lat" : 52.3086,
+            "localCode" : null,
+            "lon" : 4.7639,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          },
+          {
+            "iata" : null,
+            "icao" : "LFPG",
+            "id" : "00000000-0000-4000-8001-000000000002",
+            "isDeleted" : false,
+            "lat" : 49.0097,
+            "localCode" : null,
+            "lon" : 2.5479,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          }
+        ],
+        "entry" : {
+          "date" : "2024-06-15",
+          "from" : "EHAM",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "offBlocks" : "10:00",
+          "onBlocks" : "12:00",
+          "people" : [
+
+          ],
+          "to" : "LFPG",
+          "type" : "flight",
+          "updateFlightData" : false
+        },
+        "manualTimes" : {
+          "dual" : 60,
+          "ifr" : 75,
+          "night" : 30,
+          "pilotInCommand" : 120
+        },
+        "period" : null,
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "missing_no_self_person_overrides_ignored"
+    },
+    {
+      "category" : "missing_data",
+      "expected" : {
+        "derivedDate" : "2024-06-15",
+        "detailedTimes" : {
+          "ifr" : 240,
+          "night" : 240,
+          "totalTimeOfFlight" : 240
+        },
+        "easaTimesSigned" : {
+          "ifr" : 240,
+          "night" : 240,
+          "totalTimeOfFlight" : 240
+        },
+        "easaTimesUnsigned" : {
+          "ifr" : 240,
+          "night" : 240,
+          "totalTimeOfFlight" : 240
+        },
+        "inPeriod" : null,
+        "night" : 240,
+        "resolved" : {
+          "from" : {
+            "hasPosition" : true,
+            "identity" : "EHAM",
+            "lat" : 52.3086,
+            "lon" : 4.7639,
+            "timezone" : null
+          },
+          "to" : {
+            "hasPosition" : true,
+            "identity" : "LFPG",
+            "lat" : 49.0097,
+            "lon" : 2.5479,
+            "timezone" : null
+          }
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 1,
+        "catalog" : [
+          {
+            "iata" : null,
+            "icao" : "EHAM",
+            "id" : "00000000-0000-4000-8001-000000000001",
+            "isDeleted" : false,
+            "lat" : 52.3086,
+            "localCode" : null,
+            "lon" : 4.7639,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          },
+          {
+            "iata" : null,
+            "icao" : "LFPG",
+            "id" : "00000000-0000-4000-8001-000000000002",
+            "isDeleted" : false,
+            "lat" : 49.0097,
+            "localCode" : null,
+            "lon" : 2.5479,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          }
+        ],
+        "entry" : {
+          "date" : "2024-06-15",
+          "from" : "EHAM",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "offBlocks" : "23:00",
+          "onBlocks" : "3:00",
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "804EECAB-2B03-4B4A-A8C3-2CB7986407E5",
+              "role" : "pilotInCommand"
+            }
+          ],
+          "to" : "LFPG",
+          "type" : "flight",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "missing_no_self_person_red_eye"
     },
     {
       "category" : "missing_data",
@@ -23423,6 +23749,98 @@
       "name" : "role_deadHead"
     },
     {
+      "category" : "role_deadHead",
+      "expected" : {
+        "derivedDate" : "2024-06-15",
+        "detailedTimes" : {
+          "deadHeadRole" : 240,
+          "ifr" : 240,
+          "night" : 240,
+          "totalTimeOfFlight" : 240
+        },
+        "easaTimesSigned" : {
+
+        },
+        "easaTimesUnsigned" : {
+
+        },
+        "inPeriod" : null,
+        "night" : 240,
+        "resolved" : {
+          "from" : {
+            "hasPosition" : true,
+            "identity" : "EHAM",
+            "lat" : 52.3086,
+            "lon" : 4.7639,
+            "timezone" : null
+          },
+          "to" : {
+            "hasPosition" : true,
+            "identity" : "LFPG",
+            "lat" : 49.0097,
+            "lon" : 2.5479,
+            "timezone" : null
+          }
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+          {
+            "iata" : null,
+            "icao" : "EHAM",
+            "id" : "00000000-0000-4000-8001-000000000001",
+            "isDeleted" : false,
+            "lat" : 52.3086,
+            "localCode" : null,
+            "lon" : 4.7639,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          },
+          {
+            "iata" : null,
+            "icao" : "LFPG",
+            "id" : "00000000-0000-4000-8001-000000000002",
+            "isDeleted" : false,
+            "lat" : 49.0097,
+            "localCode" : null,
+            "lon" : 2.5479,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          }
+        ],
+        "entry" : {
+          "date" : "2024-06-15",
+          "from" : "EHAM",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "offBlocks" : "23:00",
+          "onBlocks" : "3:00",
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "992CBA63-E047-4AE3-84BC-196BDC1A3F06",
+              "role" : "deadHead"
+            }
+          ],
+          "to" : "LFPG",
+          "type" : "flight",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "selfRole" : "deadHead",
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "role_deadHead_red_eye"
+    },
+    {
       "category" : "role_flightExaminer",
       "expected" : {
         "derivedDate" : "2024-06-15",
@@ -23907,6 +24325,98 @@
         ]
       },
       "name" : "role_lineCheckAirmanInitialFO"
+    },
+    {
+      "category" : "role_lineCheckAirman",
+      "expected" : {
+        "derivedDate" : "2024-06-15",
+        "detailedTimes" : {
+          "ifr" : 240,
+          "lineCheckAirmanRole" : 240,
+          "night" : 240,
+          "totalTimeOfFlight" : 240
+        },
+        "easaTimesSigned" : {
+
+        },
+        "easaTimesUnsigned" : {
+
+        },
+        "inPeriod" : null,
+        "night" : 240,
+        "resolved" : {
+          "from" : {
+            "hasPosition" : true,
+            "identity" : "EHAM",
+            "lat" : 52.3086,
+            "lon" : 4.7639,
+            "timezone" : null
+          },
+          "to" : {
+            "hasPosition" : true,
+            "identity" : "LFPG",
+            "lat" : 49.0097,
+            "lon" : 2.5479,
+            "timezone" : null
+          }
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+          {
+            "iata" : null,
+            "icao" : "EHAM",
+            "id" : "00000000-0000-4000-8001-000000000001",
+            "isDeleted" : false,
+            "lat" : 52.3086,
+            "localCode" : null,
+            "lon" : 4.7639,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          },
+          {
+            "iata" : null,
+            "icao" : "LFPG",
+            "id" : "00000000-0000-4000-8001-000000000002",
+            "isDeleted" : false,
+            "lat" : 49.0097,
+            "localCode" : null,
+            "lon" : 2.5479,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          }
+        ],
+        "entry" : {
+          "date" : "2024-06-15",
+          "from" : "EHAM",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "offBlocks" : "23:00",
+          "onBlocks" : "3:00",
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "992CBA63-E047-4AE3-84BC-196BDC1A3F06",
+              "role" : "lineCheckAirman"
+            }
+          ],
+          "to" : "LFPG",
+          "type" : "flight",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "selfRole" : "lineCheckAirman",
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "role_lineCheckAirman_red_eye"
     },
     {
       "category" : "role_picus_signed",
@@ -25074,6 +25584,101 @@
         ]
       },
       "name" : "role_unknown"
+    },
+    {
+      "category" : "role_unknown_empty_string",
+      "expected" : {
+        "derivedDate" : "2024-06-15",
+        "detailedTimes" : {
+          "ifr" : 120,
+          "night" : 0,
+          "totalTimeOfFlight" : 120
+        },
+        "easaTimesSigned" : {
+          "ifr" : 120,
+          "night" : 0,
+          "totalTimeOfFlight" : 120
+        },
+        "easaTimesUnsigned" : {
+          "ifr" : 120,
+          "night" : 0,
+          "totalTimeOfFlight" : 120
+        },
+        "inPeriod" : null,
+        "night" : 0,
+        "resolved" : {
+          "from" : {
+            "hasPosition" : true,
+            "identity" : "EHAM",
+            "lat" : 52.3086,
+            "lon" : 4.7639,
+            "timezone" : null
+          },
+          "to" : {
+            "hasPosition" : true,
+            "identity" : "LFPG",
+            "lat" : 49.0097,
+            "lon" : 2.5479,
+            "timezone" : null
+          }
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+          {
+            "iata" : null,
+            "icao" : "EHAM",
+            "id" : "00000000-0000-4000-8001-000000000001",
+            "isDeleted" : false,
+            "lat" : 52.3086,
+            "localCode" : null,
+            "lon" : 4.7639,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          },
+          {
+            "iata" : null,
+            "icao" : "LFPG",
+            "id" : "00000000-0000-4000-8001-000000000002",
+            "isDeleted" : false,
+            "lat" : 49.0097,
+            "localCode" : null,
+            "lon" : 2.5479,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          }
+        ],
+        "entry" : {
+          "date" : "2024-06-15",
+          "from" : "EHAM",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "offBlocks" : "10:00",
+          "onBlocks" : "12:00",
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "992CBA63-E047-4AE3-84BC-196BDC1A3F06",
+              "role" : "unknown()"
+            }
+          ],
+          "to" : "LFPG",
+          "type" : "flight",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "selfRole" : "unknown()",
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "role_unknown_empty_string"
     },
     {
       "category" : "derived_date",

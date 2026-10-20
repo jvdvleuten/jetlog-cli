@@ -70,13 +70,15 @@ describe("importedEntryToCalcEntry", () => {
     expect(result!.calcEntry.isImportedFromOtherLogbook).toBe(true);
   });
 
-  it("returns undefined when there's no SELF crew member", () => {
+  it("returns an undefined selfRole when there's no SELF crew member", () => {
     const entry: ImportedEntry = newImportedEntry({
       date: "2026-05-05",
       type: "flight",
       crew: [{ refId: "person-1", role: "PIC" }]
     });
 
-    expect(importedEntryToCalcEntry(entry)).toBeUndefined();
+    const result = importedEntryToCalcEntry(entry);
+    expect(result.selfRole).toBeUndefined();
+    expect(result.calcEntry.people).toHaveLength(1);
   });
 });

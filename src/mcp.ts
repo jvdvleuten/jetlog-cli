@@ -371,8 +371,9 @@ export async function createMcpServer(): Promise<McpServer> {
         "flight-time totals locally. Given neither: computes the same totals from the " +
         "LOGGED-IN user's own Jetlog data via the read API (requires a prior `jetlog login`). " +
         "Totals include block/air/night/IFR/PIC/PICUS/SPIC/co-pilot/dual/instructor/FSTD minutes, " +
-        "taxi time, and ATPL CRCP/FNPT/synthetic credit caps. Entries with no resolvable self " +
-        "person are skipped (reported in the output). Night time and distance-based figures need airport " +
+        "taxi time, and ATPL CRCP/FNPT/synthetic credit caps. For a file, entries with no resolvable self " +
+        "person are skipped (reported in the output); for the logged-in user's own data, a flight where the pilot is not in the crew still counts its " +
+        "role-free times (block, air, night, IFR, cross-country, aircraft class) but no pilot-function time. Night time and distance-based figures need airport " +
         "positions, which only come from a logged-in Jetlog account: without a login the result carries a " +
         "note saying they were not computed, and the assistant must say so rather than report them as zero. " +
         "Check `totals.unresolvedAirports.entryCount`: when above zero, some entries use an airport that is not in the catalog, and the assistant must tell the pilot that night time and distance figures are missing for them.",
@@ -407,7 +408,6 @@ export async function createMcpServer(): Promise<McpServer> {
                 text: JSON.stringify(
                   {
                     totals,
-                    skippedNoSelfPersonCount: entryTimesResult.skippedNoSelfPersonCount,
                     parseWarnings: entryTimesResult.parseWarnings,
                     ...(entryTimesResult.notes.length > 0 ? { notes: entryTimesResult.notes } : {})
                   },
@@ -422,10 +422,10 @@ export async function createMcpServer(): Promise<McpServer> {
         if (!client) {
           return textError(`error: no path given and not logged in. Pass path+format to total a file. ${accessMessage("none", readProfile, "read")}`);
         }
-        const { skippedNoSelfPersonCount, notes, ...totals } = await computeProfileTotals(client, { profile: readProfile, offline, period });
+        const { notes, ...totals } = await computeProfileTotals(client, { profile: readProfile, offline, period });
         return {
           content: [
-            { type: "text", text: JSON.stringify({ totals, skippedNoSelfPersonCount, ...(notes.length > 0 ? { notes } : {}) }, null, 2) }
+            { type: "text", text: JSON.stringify({ totals, ...(notes.length > 0 ? { notes } : {}) }, null, 2) }
           ]
         };
       } catch (err) {

@@ -169,12 +169,12 @@ export type Airport = { hasPosition: true; lat: number; lon: number } | { hasPos
  * never requires any I/O; the CLI wires the real resolver (src/airports/; no aircraft-type DB offline
  *, documented gap, see docs/TIMES.md). */
 export interface CalcContext {
-  /** `undefined` means no person on the entry matches "self", mirrors the
-   * iOS calculator's early exit (empty result) for non-FSTD entries;
-   * see `calculator.ts`. The CLI adapter (`adapter.ts`) never produces this
-   * case itself (it skips entries with no `ref_id: "SELF"` person before
-   * calling the calculator at all), it exists so the golden-corpus test's
-   * `missing_no_self_person` case can be reproduced faithfully. */
+  /** `undefined` means no non-deleted person on the entry matches "self".
+   * Since calculatorVersion 4 a flight or bulk row is then calculated like an
+   * `unknown` role (role-free times only, no pilot-function time, no
+   * role-only overrides); see `calculator.ts`. All adapters
+   * (`apiAdapter.ts`, `adapter.ts`, `importedEntryAdapter.ts`) produce this
+   * case; `computeFileEntryTimes` warns when it holds for every file row. */
   selfRole: EntryPersonRoleName | undefined;
   activeCrewCount: number;
   /** For EASA projection; the golden-corpus test computes BOTH signed and unsigned regardless. */

@@ -45,21 +45,20 @@ function toCalcTimes(t: Times | undefined): CalcTimes | undefined {
 
 /**
  * Converts one `ImportedEntry` into a `CalcEntry` + the context fields the
- * calculator needs. Returns `undefined` when there's no `refId === "SELF"`
- * crew member, same "can't compute times without knowing which person is
- * you" contract as `payloadEntryToCalcEntry`.
+ * calculator needs. With no `refId === "SELF"` crew member `selfRole` is
+ * `undefined` (role-free times only), same as `payloadEntryToCalcEntry`.
  */
 export function importedEntryToCalcEntry(
   entry: ImportedEntry
-): { calcEntry: CalcEntry; selfRole: EntryPersonRoleName; activeCrewCount: number } | undefined {
+): { calcEntry: CalcEntry; selfRole: EntryPersonRoleName | undefined; activeCrewCount: number } {
   const selfCrew = entry.crew.find((c) => c.refId === "SELF");
-  if (!selfCrew) return undefined;
 
   const calcPeople: CalcPerson[] = entry.crew.map((c) => ({
     personId: c.refId,
     role: mapImportedRoleCode(entryPersonRoleRawValue(c.role))
   }));
-  const selfRole = mapImportedRoleCode(entryPersonRoleRawValue(selfCrew.role));
+  // No SELF crew member: calculated like an `unknown` role (role-free times only).
+  const selfRole = selfCrew ? mapImportedRoleCode(entryPersonRoleRawValue(selfCrew.role)) : undefined;
   const activeCrewCount = calcPeople.filter((p) => ACTIVE_CREW_ROLES.has(p.role)).length;
 
   const calcEntry: CalcEntry = {

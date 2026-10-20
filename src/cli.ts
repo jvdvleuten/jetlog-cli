@@ -53,28 +53,10 @@ program
       "Chat apps can use `jetlog mcp`, a local MCP server."
   );
 
-/** What to pass so `times`/`totals` can tell which listed person is the user, per source format. */
-function selfHint(format: string): string {
-  if (format === "logten") return 'Pass --self "<your name as it appears in the file>".';
-  if (format === "csv" || format === "foreflight") return "Pass --self-role <role> (for example PIC) to credit yourself on every row.";
-  if (format === "auto") return 'Pass --self "<your name>" (LogTen) or --self-role <role> (csv, foreflight).';
-  return "This format has to mark you in the file itself (an owner or pilot column).";
-}
-
-/** Closing lines for a file-based `times`/`totals` run. Entries with no person marked as the user cannot be
- * computed; when that leaves nothing at all the run is a failure (exit code 1) with the reason as the last line,
- * since a silent all-zero result looks like a valid answer. A run that skipped only some entries still succeeds. */
-function reportSelfOutcome(format: string, skipped: number, computed: number, verb: string): void {
-  const plural = (n: number) => `${n} entr${n === 1 ? "y" : "ies"}`;
-  if (skipped > 0 && computed > 0) {
-    console.error(`${plural(skipped)} skipped: no person in them is marked as you, so no times can be computed for them. ${selfHint(format)}`);
-  }
-  if (computed === 0 && skipped > 0) {
-    console.error(`error: nothing was computed, all ${plural(skipped)} were skipped. ${selfHint(format)}`);
-    process.exitCode = 1;
-    return;
-  }
-  console.error(`${verb} ${plural(computed)}`);
+/** Closing line for a file-based `times`/`totals` run. Entries with no person marked as the user are still
+ * calculated (role-free times only); a wrong `--self` is flagged by a warning from `computeFileEntryTimes`. */
+function reportSelfOutcome(computed: number, verb: string): void {
+  console.error(`${verb} ${computed} entr${computed === 1 ? "y" : "ies"}`);
 }
 
 function printNotices(notices: ImportNotice[]): void {
@@ -535,7 +517,7 @@ program
     ) => {
       const content = await readFile(file, "utf-8");
       await useLoggedInAirportsIfAvailable({ profile: opts.profile, baseUrl: opts.baseUrl, offline: opts.offline });
-      const { calculated, skippedNoSelfPersonCount, parseWarnings, notes } = await computeFileEntryTimes(opts.from, content, basename(file), {
+      const { calculated, parseWarnings, notes } = await computeFileEntryTimes(opts.from, content, basename(file), {
         selfRole: opts.selfRole,
         selfName: opts.self
       });
@@ -548,7 +530,7 @@ program
       } else if (calculated.length > 0) {
         console.log(formatEntryTimesTable(calculated));
       }
-      reportSelfOutcome(opts.from, skippedNoSelfPersonCount, calculated.length, "computed times for");
+      reportSelfOutcome(calculated.length, "computed times for");
     }
   );
 
@@ -600,21 +582,16 @@ program
           for (const warning of entryTimesResult.parseWarnings) console.error(`warning: ${warning}`);
           for (const note of entryTimesResult.notes) console.error(note);
           console.log(opts.json ? JSON.stringify(totals, null, 2) : formatTotalsSummary(totals, period));
-          reportSelfOutcome(opts.from, entryTimesResult.skippedNoSelfPersonCount, entryTimesResult.calculated.length, "computed totals from");
+          reportSelfOutcome(entryTimesResult.calculated.length, "computed totals from");
         } else {
           const client = await requireClient(opts.profile, opts.baseUrl);
-          const { skippedNoSelfPersonCount, notes, ...totals } = await computeProfileTotals(client, {
+          const { notes, ...totals } = await computeProfileTotals(client, {
             profile: opts.profile,
             offline: opts.offline,
             period
           });
           for (const note of notes) console.error(note);
           console.log(opts.json ? JSON.stringify(totals, null, 2) : formatTotalsSummary(totals, period));
-          if (skippedNoSelfPersonCount > 0) {
-            console.error(
-              `${skippedNoSelfPersonCount} entr${skippedNoSelfPersonCount === 1 ? "y" : "ies"} skipped: no matching self person on ${skippedNoSelfPersonCount === 1 ? "it" : "them"}`
-            );
-          }
         }
       });
     }

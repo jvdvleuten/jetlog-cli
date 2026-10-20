@@ -26,13 +26,13 @@ function mapRole(wireRole: string): ReturnType<typeof mapApiRoleCode> {
 
 export function payloadEntryToCalcEntry(
   entry: SchemaEntry
-): { calcEntry: CalcEntry; selfRole: EntryPersonRoleName; activeCrewCount: number } | undefined {
+): { calcEntry: CalcEntry; selfRole: EntryPersonRoleName | undefined; activeCrewCount: number } {
   const people = entry.people ?? [];
   const selfPerson = people.find((p) => p.ref_id === "SELF");
-  if (!selfPerson) return undefined;
 
   const calcPeople: CalcPerson[] = people.map((p) => ({ personId: p.ref_id, role: mapRole(p.role) }));
-  const selfRole = mapRole(selfPerson.role);
+  // No SELF person: calculated like an `unknown` role (role-free times only).
+  const selfRole = selfPerson ? mapRole(selfPerson.role) : undefined;
   const activeCrewCount = calcPeople.filter((p) => ACTIVE_CREW_ROLES.has(p.role)).length;
 
   const type = entry.type ?? "flight";

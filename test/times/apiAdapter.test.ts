@@ -61,8 +61,11 @@ describe("apiEntryToCalcEntry parity", () => {
     expect(r?.selfRole).toBe("routeInstructorCoPilot");
   });
 
-  it("returns undefined when only deleted rows match self", () => {
-    expect(apiEntryToCalcEntry({ ...base, people: [{ person_id: 1, role: "PIC", is_deleted: true }] }, 1)).toBeUndefined();
+  it("keeps a flight with no live self row (selfRole undefined) so its role-free times count", () => {
+    const r = apiEntryToCalcEntry({ ...base, people: [{ person_id: 1, role: "PIC", is_deleted: true }] }, 1);
+    expect(r).toBeDefined();
+    expect(r!.selfRole).toBeUndefined();
+    expect(apiEntryToCalcEntry({ ...base, people: [] }, 1).selfRole).toBeUndefined();
   });
 
   it("keeps an FSTD entry with no live self row (selfRole undefined), like iOS and the backend", () => {

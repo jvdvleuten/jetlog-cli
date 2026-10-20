@@ -108,17 +108,16 @@ interface ApiDerived {
  * Converts one `/api/cli/v1/entries` entry (a loose `Record<string, unknown>`;
  * the server is the source of truth, see `src/api/client.ts`'s response
  * shapes) into a `CalcEntry` + the context fields the calculator needs.
- * Returns `undefined` when no person on the entry matches `selfPersonId`,
- * except for FSTD entries: iOS (`calculateFSTDTimes`) and the backend log the
- * session time of an FSTD entry whose user has no live person row (the
- * `default:` role branch), so those come back with `selfRole: undefined` and are
- * counted as trainee sessions by the aggregator, like the other two platforms.
- * A non-FSTD entry without a self person stays skipped (counted by the caller).
+ * An entry where no live person matches `selfPersonId` comes back with
+ * `selfRole: undefined`, never skipped. The calculator then logs an FSTD
+ * entry's session time (counted as a trainee session by the aggregator) and
+ * calculates a flight or bulk row like an `unknown` role: role-free times
+ * only, no pilot-function time (calculatorVersion 4), like iOS and the backend.
  */
 export function apiEntryToCalcEntry(
   entry: Record<string, unknown>,
   selfPersonId: string | number
-): { calcEntry: CalcEntry; selfRole: EntryPersonRoleName | undefined; activeCrewCount: number } | undefined {
+): { calcEntry: CalcEntry; selfRole: EntryPersonRoleName | undefined; activeCrewCount: number } {
   const derived = (entry.derived ?? {}) as ApiDerived;
   const people = (entry.people as ApiPerson[] | undefined) ?? [];
 
@@ -130,7 +129,6 @@ export function apiEntryToCalcEntry(
     .filter((p) => String(p.person_id) === selfPersonIdStr && !p.is_deleted && p.role !== null && p.role !== undefined)
     .map((p) => ({ person: p, key: roleSortKey(mapApiRoleCode(p.role), p.role) }))
     .sort((a, b) => a.key[0] - b.key[0] || (a.key[1] < b.key[1] ? -1 : a.key[1] > b.key[1] ? 1 : 0))[0]?.person;
-  if (!selfPerson && entry.type !== "fstd") return undefined;
 
   const calcPeople: CalcPerson[] = people.map((p) => ({
     personId: String(p.person_id),

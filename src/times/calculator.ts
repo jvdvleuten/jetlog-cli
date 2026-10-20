@@ -388,15 +388,15 @@ export function calculateEntryTimes(entry: CalcEntry, ctx: CalcContext): Calcula
   if (entry.type === "fstd") {
     return calculateFSTDTimes(entry, ctx);
   }
-  // Mirrors the iOS calculator's early return when there is no self person:
-  // when no person on the entry matches "self", EVERY non-FSTD entry
-  // (bulk or not) returns a completely empty result, without even computing
-  // block/session time. See the `selfRole` doc comment on `CalcContext`.
-  if (ctx.selfRole === undefined) {
-    return { detailedTimes: {}, night: undefined, easaTimesSigned: {}, easaTimesUnsigned: {} };
-  }
+  // NO ROLE MEANS NO PILOT-FUNCTION TIME (calculatorVersion 4): when no person
+  // on the entry matches "self", a flight or bulk row is calculated exactly
+  // like an `unknown` role. The role-free times are credited (block, air time,
+  // night, IFR, cross-country, aircraft class); no pilot-function bucket is
+  // set, and no role-only override applies (PIC from the right seat, SPIC dual,
+  // CRCP credit, imported PIC/co-pilot columns on a bulk row).
+  const selfRole: EntryPersonRoleName = ctx.selfRole ?? "unknown";
   if (entry.isBulk && entry.manualTimes) {
-    return calculateBulkTimes(entry, ctx, ctx.selfRole);
+    return calculateBulkTimes(entry, ctx, selfRole);
   }
-  return calculateMainTimes(entry, ctx, ctx.selfRole);
+  return calculateMainTimes(entry, ctx, selfRole);
 }

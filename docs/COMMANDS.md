@@ -374,10 +374,12 @@ come from your Jetlog account. Without a login (or with `--offline`) they are
 not computed, the night column is blank, and one `note:` line on stderr says
 so. Run `jetlog login` to use your airport catalog.
 
-Entries without a person marked as you are skipped, and the command says what
-to pass. For LogTen that is `--self "<name>"` (the default is the most
-frequent crew name; a tie is not guessed). For `csv` and `foreflight` it is
-`--self-role <role>`. When every entry is skipped the command exits 1.
+Entries without a person marked as you are still calculated, but only with
+role-free times (block, air, night, IFR, cross-country, aircraft class), no PIC
+or other pilot-function time. If no row at all has a person marked as you, a
+warning on stderr says so. For LogTen pass `--self "<name>"` (the default is
+the most frequent crew name; a tie is not guessed). For `csv` and `foreflight`
+pass `--self-role <role>`.
 
 ### `jetlog totals`
 
