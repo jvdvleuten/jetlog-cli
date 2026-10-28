@@ -266,5 +266,135 @@ describe("changes commands", () => {
       const schema = getProposeChangesJsonSchema() as { properties: Record<string, unknown> };
       expect(Object.keys(schema.properties)).toEqual(["summary", "operations"]);
     });
+
+    describe("places", () => {
+      // The preview shape POST /api/pending_changes really returns for a place create (backend places.md).
+      const placeAfter = {
+        id: "pl-1",
+        version: 2,
+        is_deleted: false,
+        code: "EHAM",
+        icao: "EHAM",
+        iata: "AMS",
+        name: "Schiphol",
+        latitude: 52.3086,
+        longitude: 4.7639,
+        country_code: "NL",
+        timezone: "Europe/Amsterdam",
+        kind: "airport"
+      };
+
+      it("sends a place create and prints its preview", async () => {
+        const ops = [
+          {
+            op: "create",
+            resource: "place",
+            data: { icao: "EHAM", iata: "AMS", name: "Schiphol", latitude: 52.3086, longitude: 4.7639, country_code: "nl", timezone: "Europe/Amsterdam" }
+          }
+        ];
+        const preview = [{ index: 0, op: "create", resource: "place", id: "pl-1", before: null, after: placeAfter, changed_fields: ["code", "name", "icao", "iata"] }];
+        const server = new TestServer([jsonHandler(201, { pending_change: { ...proposed, operations: ops, preview, counts: { creates: 1, updates: 0, deletes: 0 } } })]);
+        await server.start();
+        await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+        await writePayload({ summary: "Add Schiphol", operations: ops });
+        const out: string[] = [];
+        vi.spyOn(console, "log").mockImplementation((...a: unknown[]) => void out.push(a.join(" ")));
+        try {
+          await changesPropose({ profile: "default", file });
+          expect(server.requests[0]!.body).toEqual({ summary: "Add Schiphol", operations: ops });
+          expect(out.join("\n")).toContain("[0] create place pl-1");
+          expect(out.join("\n")).toContain("changed: code, name, icao, iata");
+        } finally {
+          await server.stop();
+        }
+      });
+
+      it("accepts a place update, a delete without data and clearing values with null", async () => {
+        const ops = [
+          { op: "update", resource: "place", id: "pl-1", data: { name: null, timezone: "Europe/Amsterdam", latitude: null, kind: "airport" } },
+          { op: "delete", resource: "place", id: "pl-2" },
+          { op: "update", resource: "place", id: "pl-3", data: { is_deleted: false, code: "ZZ01" } }
+        ];
+        const server = new TestServer([jsonHandler(201, { pending_change: { ...proposed, operations: ops } })]);
+        await server.start();
+        await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+        await writePayload({ summary: "Places", operations: ops });
+        vi.spyOn(console, "log").mockImplementation(() => {});
+        try {
+          await changesPropose({ profile: "default", file });
+          expect(server.requests[0]!.body).toMatchObject({ operations: ops });
+        } finally {
+          await server.stop();
+        }
+      });
+
+      it("refuses an unknown key or a wrong type in a place before any request", async () => {
+        const server = new TestServer([]);
+        await server.start();
+        await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+        try {
+          const cases: [Record<string, unknown>, RegExp][] = [
+            [{ icao_code: "EHAM" }, /operations\.0\.data: a place does not have "icao_code"\. Place fields: code, icao, iata, name, latitude, longitude, country_code, timezone, kind, is_deleted/],
+            [{ latitude: "52.3" }, /operations\.0\.data\.latitude/],
+            [{ latitude: 91 }, /operations\.0\.data\.latitude: must be a number from -90 to 90/],
+            [{ longitude: -180.5 }, /operations\.0\.data\.longitude: must be a number from -180 to 180/],
+            [{ country_code: "NLD" }, /operations\.0\.data\.country_code: must be a two-letter ISO country code/],
+            [{ kind: "heliport" }, /operations\.0\.data\.kind: must be "airport"/],
+            [{ icao: 1234 }, /operations\.0\.data\.icao/],
+            [{ is_deleted: "yes" }, /operations\.0\.data\.is_deleted/]
+          ];
+          for (const [data, error] of cases) {
+            await writePayload({ summary: "x", operations: [{ op: "create", resource: "place", data }] });
+            await expect(changesPropose({ profile: "default", file }), JSON.stringify(data)).rejects.toThrow(error);
+          }
+          expect(server.requests).toHaveLength(0);
+        } finally {
+          await server.stop();
+        }
+      });
+
+      it("does not apply the place rules to other resources", async () => {
+        const ops = [{ op: "update", resource: "aircraft", id: "a-1", data: { latitude: "not a place" } }];
+        const server = new TestServer([jsonHandler(201, { pending_change: { ...proposed, operations: ops } })]);
+        await server.start();
+        await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+        await writePayload({ summary: "x", operations: ops });
+        vi.spyOn(console, "log").mockImplementation(() => {});
+        try {
+          await changesPropose({ profile: "default", file });
+          expect(server.requests).toHaveLength(1);
+        } finally {
+          await server.stop();
+        }
+      });
+
+      it("shows the server's place rule errors per operation", async () => {
+        const server = new TestServer([
+          jsonHandler(422, {
+            error: {
+              message: "Invalid operations",
+              errors: [{ index: 0, field: "code", message: "is already a code of your place 20c06f97-c201-426d-934f-347df6bcbbdc" }]
+            }
+          })
+        ]);
+        await server.start();
+        await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+        await writePayload({ summary: "x", operations: [{ op: "create", resource: "place", data: { code: "ZZ01" } }] });
+        try {
+          await expect(changesPropose({ profile: "default", file })).rejects.toThrow(
+            /operation 0, code: is already a code of your place 20c06f97-c201-426d-934f-347df6bcbbdc/
+          );
+        } finally {
+          await server.stop();
+        }
+      });
+
+      it("lists place as a resource in the JSON Schema, which stays representable", () => {
+        const schema = getProposeChangesJsonSchema() as {
+          properties: { operations: { items: { properties: { resource: { enum: string[] } } } } };
+        };
+        expect(schema.properties.operations.items.properties.resource.enum).toContain("place");
+      });
+    });
   });
 });

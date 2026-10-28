@@ -12,4 +12,4 @@ Use the `jetlog` command line to read and edit the pilot's logbook.
 
 Rules that always apply: never guess crew, roles or times, times are UTC, preview before you write, and run `jetlog changes apply --yes` or a real import only after the pilot confirmed that exact preview in the chat.
 
-If `jetlog` is not installed, tell the pilot to run `npm i -g jetlog-cli`.
+If `jetlog` is not installed, tell the pilot to run `npm i -g jetlog-cli@latest`. The same command updates it when `jetlog` says a newer version is available.

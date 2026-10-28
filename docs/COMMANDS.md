@@ -5,13 +5,14 @@ Every command also has `--help`.
 - [Convert and check](#convert-and-check): `convert`, `validate`, `schema`,
   `link`, `ai convert`
 - [Login and reading](#login-and-reading): `login`, `logout`, `whoami`,
-  `entries`, `people`, `aircraft`, `export`
+  `entries`, `people`, `aircraft`, `places`, `export`
 - [Files, photos and signatures](#files-photos-and-signatures):
   `attachments`, `photos`, `signatures`
 - [Flight times](#flight-times): `times`, `totals`
 - [Importing](#importing): `import`, `batches`
 - [Proposed changes](#proposed-changes): `changes`
 - [Partner API](#partner-api): `push` (deprecated)
+- [Updates](#updates)
 - [Environment variables](#environment-variables)
 
 The MCP server (`jetlog mcp`) is described in [AI.md](AI.md).
@@ -202,7 +203,7 @@ Connected Apps.
 `jetlog whoami` shows the account and token behind the active login.
 `jetlog token print` prints the stored token, for use in a script.
 
-### `jetlog entries`, `people`, `aircraft`
+### `jetlog entries`, `people`, `aircraft`, `places`
 
 ```sh
 jetlog entries list --from 2026-01-01 --to 2026-03-31
@@ -210,6 +211,7 @@ jetlog entries list --registration PH-ABC --json
 jetlog entries search --flight-number KL1023 --csv
 jetlog people
 jetlog aircraft
+jetlog places --search eh
 ```
 
 The default output is a table. Pass `--json` or `--csv` for machine-readable
@@ -220,6 +222,14 @@ It returns one page (`--limit`, at most 200) unless you pass `--all`.
 `files` column, and `people` shows a `photo` column. A person's `notes` are in the
 `--json` output only. Notes can be imported (`notes` on a person, at most 10000
 characters, `null` clears them) and changed with `changes propose`.
+
+`places` lists the places in your logbook: the airports you flew to and the
+places you added yourself, ordered by code, with `code`, `icao`, `iata`,
+`name`, `country_code`, `timezone` and the coordinates. `--search` matches a
+code (code, ICAO or IATA) from its start or any part of the name, in any case.
+Like `people` and `aircraft` it lists every place. `--limit` (at most 1000)
+and `--offset` ask for one page instead, and stderr says where the next page
+starts.
 
 ### `jetlog export`
 
@@ -469,7 +479,7 @@ preview before deleting.
 
 ## Proposed changes
 
-Targeted edits to existing entries, people and aircraft go through a
+Targeted edits to existing entries, people, aircraft and places go through a
 propose, preview, apply flow. Proposing writes nothing. It needs
 `jetlog login --scope write`.
 
@@ -488,6 +498,23 @@ The payload is the one the MCP tool `propose_changes` takes, and
   "summary": "Correct the registration on the 2026-03-14 flight",
   "operations": [
     { "op": "update", "resource": "entry", "id": "<entry id>", "data": { "registration": "PH-EZA" } }
+  ]
+}
+```
+
+A place (`"resource": "place"`, ids from `jetlog places`) takes `icao`,
+`iata`, `code`, `name`, `latitude`, `longitude`, `country_code`, `timezone`,
+`kind` (only `"airport"`) and `is_deleted`. Any other key is refused before
+anything is sent. For an official airport give `icao` and/or `iata` and leave
+`code` out; for a place without those codes give `code`. The code cannot
+change on an update: delete the place and create a new one. No two places may
+share a code.
+
+```json
+{
+  "summary": "Add the time zone of Schiphol",
+  "operations": [
+    { "op": "update", "resource": "place", "id": "<place id>", "data": { "timezone": "Europe/Amsterdam" } }
   ]
 }
 ```
@@ -532,6 +559,23 @@ jetlog push payload.json --dry-run    # validate only, nothing sent
 
 Validates in API mode (`from` and `to` required), sends at most 500 entries
 per request, and prints `skipped` and `warnings` from each response.
+
+## Updates
+
+Jetlog tells the CLI which version is the newest. When yours is older, a
+command that talked to Jetlog ends with one line on stderr, at most once a
+day:
+
+```
+jetlog-cli 0.2.2 is available, you have 0.2.1. Run npm i -g jetlog-cli@latest
+```
+
+The last time it was shown is kept in `update-notice.json` next to the stored
+login. `jetlog mcp` never prints it: it tells the assistant instead, in the
+server instructions and with its first tool result.
+
+When a version is too old to work with Jetlog at all, Jetlog refuses the
+request and the CLI shows its message, which says how to update.
 
 ## Environment variables
 

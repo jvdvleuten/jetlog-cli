@@ -21,6 +21,10 @@ server.
    `credentials.json`).
 3. Add `--json` when you need to parse output. Progress and warnings go to
    stderr, results to stdout. `jetlog <command> --help` lists every option.
+4. If stderr says a newer jetlog-cli is available, tell the pilot once. The
+   update is `npm i -g jetlog-cli@latest`, which they run themselves. If a
+   command fails because the version is no longer supported, stop and pass
+   that message on.
 
 ## Reading the logbook
 
@@ -31,6 +35,9 @@ These never change anything, run them freely:
   `--flight-number`, `--person-id`, `--role`, `--limit`, `--all`, `--json`.
 - `jetlog people` and `jetlog aircraft` list crew and aircraft with their ids.
   A person's `notes` show in `jetlog people --json`.
+- `jetlog places` lists the pilot's places (airports and their own places)
+  with their ids. `--search <text>` matches a code from its start or part of
+  the name.
 - `jetlog totals` gives flight-time totals for the account (or for a file).
   Do not add up times yourself.
 - `jetlog export -o logbook.json` writes the full logbook to disk.
@@ -69,7 +76,7 @@ output says so, tell the pilot and do not report night time as zero.
 Re-importing a file updates entries that match existing ones. Say so when the
 file was imported before.
 
-## Targeted edits to existing entries, people and aircraft
+## Targeted edits to existing entries, people, aircraft and places
 
 1. Look up the ids you need with the read commands.
 2. Print the payload shape if you need it: `jetlog changes schema`
@@ -93,6 +100,14 @@ file was imported before.
    question itself, which only works when the pilot sits at the terminal.
    A general "go ahead" from earlier in the conversation does not count.
 
+A place (`"resource": "place"`) takes only `icao`, `iata`, `code`, `name`,
+`latitude`, `longitude` (numbers), `country_code` (two letters), `timezone`
+(IANA, such as `Europe/Amsterdam`), `kind` (`"airport"`) and `is_deleted`. For
+an official airport send `icao` and/or `iata` and leave `code` out. Send
+`code` only for a place without those codes. A code cannot change on an
+update: propose a delete and a create instead, and say so. On an update `null`
+clears `icao`, `iata`, `name`, the coordinates, `country_code` or `timezone`.
+
 A proposal expires after 24 hours and only the login that proposed it can
 apply it. If the data changed in the meantime, apply writes nothing and prints
 a fresh preview to confirm again.
@@ -110,7 +125,7 @@ Files, photos and signatures:
 
 ## What writes and what does not
 
-Safe to run without asking: `whoami`, `entries`, `people`, `aircraft`,
+Safe to run without asking: `whoami`, `entries`, `people`, `aircraft`, `places`,
 `totals`, `times`, `export`, `convert`, `validate`, `schema`, `link` (without
 `--open`), `batches list`, `changes schema`, `changes propose`, `changes show`,
 `attachments list`, `photos get`, `signatures show`, `signatures get` and

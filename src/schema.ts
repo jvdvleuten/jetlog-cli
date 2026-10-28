@@ -131,6 +131,33 @@ export const payloadSchema = z
   })
   .strict();
 
+/**
+ * `data` of a `place` operation in a proposed change (`jetlog changes propose`, MCP `propose_changes`). Places are
+ * not part of the import payload. The keys are the backend's place allowlist; strict, because the server drops an
+ * unknown key without a word, so a typo such as `icao_code` would otherwise be lost silently. The server checks the
+ * rest (code derivation, unique codes, the time zone name) at propose time and again at apply time.
+ */
+export const placeDataSchema = z
+  .object({
+    code: z.string().nullish(),
+    icao: z.string().nullish(),
+    iata: z.string().nullish(),
+    name: z.string().nullish(),
+    latitude: z.number().min(-90, "must be a number from -90 to 90").max(90, "must be a number from -90 to 90").nullish(),
+    longitude: z.number().min(-180, "must be a number from -180 to 180").max(180, "must be a number from -180 to 180").nullish(),
+    country_code: z
+      .string()
+      // Blank clears it, as null does: the server trims it to nothing and stores null.
+      .regex(/^\s*(?:[A-Za-z]{2})?\s*$/, "must be a two-letter ISO country code")
+      .nullish(),
+    timezone: z.string().nullish(),
+    kind: z.literal("airport", 'must be "airport"').optional(),
+    is_deleted: z.boolean().optional()
+  })
+  .strict();
+
+export type PlaceData = z.infer<typeof placeDataSchema>;
+
 export type Entry = z.infer<typeof entrySchema>;
 /** Pre-default-applied shape, convenient for code that builds entries before validation. */
 export type EntryInput = z.input<typeof entrySchema>;

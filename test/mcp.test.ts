@@ -57,6 +57,7 @@ describe("MCP server", () => {
         "list_aircraft",
         "list_entry_attachments",
         "list_people",
+        "list_places",
         "make_import_links",
         "propose_changes",
         "search_entries",
@@ -76,7 +77,7 @@ describe("MCP server", () => {
       const { tools } = await client.listTools();
       const names = tools.map((t) => t.name);
       expect(names).toEqual(
-        expect.arrayContaining(["whoami", "search_entries", "list_people", "list_aircraft"])
+        expect.arrayContaining(["whoami", "search_entries", "list_people", "list_aircraft", "list_places"])
       );
     } finally {
       delete process.env.JETLOG_TOKEN;
@@ -102,6 +103,62 @@ describe("MCP server", () => {
       const result = await client.callTool({ name: "whoami", arguments: {} });
       const text = (result.content as { type: string; text: string }[])[0]!.text;
       expect(JSON.parse(text).email).toBe("pilot@example.com");
+    } finally {
+      delete process.env.JETLOG_TOKEN;
+      delete process.env.JETLOG_BASE_URL;
+      await server.stop();
+    }
+  });
+
+  it("list_places passes q, limit and offset on and returns the page as structured content", async () => {
+    const page = {
+      places: [{ id: "p1", code: "EHAM", icao: "EHAM", iata: "AMS", name: "Schiphol", latitude: 52.3, longitude: 4.76, country_code: "NL", timezone: "Europe/Amsterdam", kind: "airport" }],
+      limit: 1,
+      offset: 0,
+      next_offset: 1
+    };
+    const server = new TestServer([jsonHandler(200, page), jsonHandler(200, { ...page, places: [], offset: 1, next_offset: null })]);
+    await server.start();
+    process.env.JETLOG_TOKEN = "jlp_abc";
+    process.env.JETLOG_BASE_URL = server.baseUrl;
+    try {
+      const { client } = await connectedClient();
+      const tool = (await client.listTools()).tools.find((t) => t.name === "list_places")!;
+      expect(tool.annotations?.readOnlyHint).toBe(true);
+      expect(Object.keys(tool.inputSchema.properties ?? {}).sort()).toEqual(["limit", "offset", "q"]);
+
+      const first = await client.callTool({ name: "list_places", arguments: { q: "eh", limit: 1 } });
+      expect(server.requests[0]!.path).toBe("/api/cli/v1/places?q=eh&limit=1");
+      expect(first.isError).toBeFalsy();
+      expect(first.structuredContent).toEqual(page);
+      expect((first.content as { text: string }[])[0]!.text).toMatch(/^1 place\. More with offset 1\.\n/);
+
+      const last = await client.callTool({ name: "list_places", arguments: { offset: 1 } });
+      expect(server.requests[1]!.path).toBe("/api/cli/v1/places?offset=1");
+      expect((last.content as { text: string }[])[0]!.text).toMatch(/^0 places\.\n/);
+
+      const bad = await client.callTool({ name: "list_places", arguments: { limit: 5000 } });
+      expect(bad.isError).toBe(true);
+      const long = await client.callTool({ name: "list_places", arguments: { q: "é".repeat(128) } });
+      expect(long.isError).toBe(true);
+      expect(server.requests).toHaveLength(2);
+    } finally {
+      delete process.env.JETLOG_TOKEN;
+      delete process.env.JETLOG_BASE_URL;
+      await server.stop();
+    }
+  });
+
+  it("list_places returns a server error as a tool error", async () => {
+    const server = new TestServer([jsonHandler(400, { error: "invalid_parameter" })]);
+    await server.start();
+    process.env.JETLOG_TOKEN = "jlp_abc";
+    process.env.JETLOG_BASE_URL = server.baseUrl;
+    try {
+      const { client } = await connectedClient();
+      const result = await client.callTool({ name: "list_places", arguments: { q: "x" } });
+      expect(result.isError).toBe(true);
+      expect((result.content as { text: string }[])[0]!.text).toBe("error: invalid_parameter");
     } finally {
       delete process.env.JETLOG_TOKEN;
       delete process.env.JETLOG_BASE_URL;
@@ -267,7 +324,8 @@ describe("MCP server", () => {
     const readCalls: [string, Record<string, unknown>][] = [
       ["search_entries", {}],
       ["list_people", {}],
-      ["list_aircraft", {}]
+      ["list_aircraft", {}],
+      ["list_places", {}]
     ];
     // The file tools sit behind the same access gates, plus the files scope (test/mcp-files.test.ts).
     const fileWriteCalls: [string, Record<string, unknown>][] = [
@@ -532,6 +590,47 @@ describe("MCP server", () => {
         expect(applied.isError).toBeFalsy();
         expect((applied.structuredContent as { applied_batch_id: string }).applied_batch_id).toBe("batch-1");
         expect(server.requests[1]!.path).toBe("/api/pending_changes/pc-1/apply");
+      } finally {
+        delete process.env.JETLOG_BASE_URL;
+        await server.stop();
+      }
+    });
+
+    it("propose_changes takes a place, describes it, and refuses an unknown place key before any request", async () => {
+      const ops = [{ op: "update", resource: "place", id: "pl-1", data: { timezone: "Europe/Amsterdam" } }];
+      const pendingChange = {
+        id: "pc-2",
+        status: "pending",
+        summary: "Time zone",
+        operations: ops,
+        preview: [{ index: 0, op: "update", resource: "place", id: "pl-1", before: { timezone: null }, after: { timezone: "Europe/Amsterdam" }, changed_fields: ["timezone"] }],
+        counts: { creates: 0, updates: 1, deletes: 0 },
+        expires_at: "2026-01-06T00:00:00Z"
+      };
+      const server = new TestServer([jsonHandler(201, { pending_change: pendingChange })]);
+      await server.start();
+      await saveProfile("default", { token: "jlp_abc", scope: "read write" });
+      process.env.JETLOG_BASE_URL = server.baseUrl;
+      try {
+        const { client } = await connectedClient();
+        const tool = (await client.listTools()).tools.find((t) => t.name === "propose_changes")!;
+        expect(tool.description).toContain("- place (an airport or the pilot's own place, ids from list_places)");
+        const resource = (tool.inputSchema.properties as { operations: { items: { properties: { resource: { enum: string[] } } } } }).operations.items
+          .properties.resource.enum;
+        expect(resource).toContain("place");
+
+        const refused = await client.callTool({
+          name: "propose_changes",
+          arguments: { summary: "x", operations: [{ op: "create", resource: "place", data: { icao_code: "EHAM" } }] }
+        });
+        expect(refused.isError).toBe(true);
+        expect(text(refused)).toContain('a place does not have "icao_code". Place fields: code, icao, iata');
+        expect(server.requests).toHaveLength(0);
+
+        const proposed = await client.callTool({ name: "propose_changes", arguments: { summary: "Time zone", operations: ops } });
+        expect(proposed.isError).toBeFalsy();
+        expect(server.requests[0]!.body).toEqual({ summary: "Time zone", operations: ops });
+        expect((proposed.structuredContent as { pending_id: string }).pending_id).toBe("pc-2");
       } finally {
         delete process.env.JETLOG_BASE_URL;
         await server.stop();

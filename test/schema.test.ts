@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getJsonSchema } from "../src/json-schema.js";
-import { checkModeRequirements, payloadSchema, validatePayload } from "../src/schema.js";
+import { checkModeRequirements, payloadSchema, placeDataSchema, validatePayload } from "../src/schema.js";
 
 describe("payloadSchema", () => {
   it("accepts a minimal valid payload", () => {
@@ -147,5 +147,49 @@ describe("person notes", () => {
 
   it("keeps the JSON Schema derivable with a notes string", () => {
     expect(JSON.stringify(getJsonSchema())).toContain('"notes":{"anyOf":[{"type":"string","maxLength":10000},{"type":"null"}]}');
+  });
+});
+
+describe("placeDataSchema", () => {
+  it("accepts every place field the backend allows, nulls included", () => {
+    const full = {
+      code: "EHAM",
+      icao: "EHAM",
+      iata: "AMS",
+      name: "Schiphol",
+      latitude: 52.3086,
+      longitude: 4.7639,
+      country_code: " nl ",
+      timezone: "Europe/Amsterdam",
+      kind: "airport",
+      is_deleted: false
+    };
+    expect(placeDataSchema.safeParse(full).success).toBe(true);
+    expect(placeDataSchema.safeParse({ icao: null, iata: null, name: null, latitude: null, longitude: null, country_code: null, timezone: null }).success).toBe(true);
+    expect(placeDataSchema.safeParse({}).success).toBe(true);
+    // The server stores a blank country code as null, so blank clears it like null does.
+    expect(placeDataSchema.safeParse({ country_code: "" }).success).toBe(true);
+    expect(placeDataSchema.safeParse({ country_code: "  " }).success).toBe(true);
+  });
+
+  it("is strict about keys and checks types and ranges", () => {
+    for (const bad of [
+      { id: "pl-1" },
+      { timestamp: "2026-01-01T00:00:00Z" },
+      { latitude: "52.3" },
+      { latitude: -90.1 },
+      { longitude: 180.1 },
+      { country_code: "N" },
+      { kind: null },
+      { kind: "seaplane_base" },
+      { is_deleted: null },
+      { name: 3 }
+    ]) {
+      expect(placeDataSchema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it("is not part of the import payload", () => {
+    expect(payloadSchema.safeParse({ places: [] }).success).toBe(false);
   });
 });

@@ -495,7 +495,7 @@ describe("local MCP file tools", () => {
       const tool = (await client.listTools()).tools.find((t) => t.name === "propose_changes")!;
       const resource = (tool.inputSchema as { properties: { operations: { items: { properties: { resource: { enum: string[] } } } } } }).properties.operations.items
         .properties.resource.enum;
-      expect(resource).toEqual(["entry", "person", "aircraft", "fstd", "entry_attachment", "signature_link"]);
+      expect(resource).toEqual(["entry", "person", "aircraft", "fstd", "place", "entry_attachment", "signature_link"]);
       for (const term of ["signature_attachment_id", "signature_waived", "photo_attachment_id", "NOT accepted by an authority", "entry_ids"]) {
         expect(tool.description, term).toContain(term);
       }

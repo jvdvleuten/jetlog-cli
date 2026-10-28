@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { placeDataSchema } from "./schema.js";
 
 /**
  * The propose payload: one definition for the MCP `propose_changes` tool and `jetlog changes propose`.
@@ -10,7 +11,7 @@ export const proposeChangesShape = {
     .array(
       z.object({
         op: z.enum(["create", "update", "delete"]),
-        resource: z.enum(["entry", "person", "aircraft", "fstd", "entry_attachment", "signature_link"]),
+        resource: z.enum(["entry", "person", "aircraft", "fstd", "place", "entry_attachment", "signature_link"]),
         id: z.string().optional().describe("Required for update/delete; omit for create."),
         data: z.record(z.string(), z.unknown()).optional(),
         add_self: z
@@ -20,6 +21,24 @@ export const proposeChangesShape = {
             "Entry creates only. Default true: the server adds the pilot to `people` with their default role if missing. " +
               "Set false ONLY when the pilot was genuinely not crew on this flight."
           )
+      })
+      // A place's data is checked here, before anything is sent. The other resources leave that to the server.
+      // A refinement, not a union, so z.toJSONSchema still represents the payload (it skips refinements).
+      .superRefine((operation, ctx) => {
+        if (operation.resource !== "place" || operation.data === undefined) return;
+        const parsed = placeDataSchema.safeParse(operation.data);
+        if (parsed.success) return;
+        for (const issue of parsed.error.issues) {
+          const keys = issue.code === "unrecognized_keys" ? issue.keys : [];
+          ctx.addIssue({
+            code: "custom",
+            path: ["data", ...issue.path],
+            message:
+              keys.length > 0
+                ? `a place does not have ${keys.map((k) => `"${k}"`).join(", ")}. Place fields: ${Object.keys(placeDataSchema.shape).join(", ")}`
+                : issue.message
+          });
+        }
       })
     )
     .max(200)

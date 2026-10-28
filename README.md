@@ -24,7 +24,10 @@ npm i -g jetlog-cli
 jetlog --help
 ```
 
-Or run it without installing: `npx jetlog-cli <command>`.
+Or run it without installing: `npx -y jetlog-cli@latest <command>`.
+
+To update a global install, run `npm i -g jetlog-cli@latest`. The CLI tells
+you once a day when a newer version is out.
 
 From source instead (for development):
 
@@ -82,7 +85,7 @@ Chat apps that cannot run shell commands, such as Claude Desktop, can use
 needed for coding agents or for edits.
 
 ```sh
-claude mcp add jetlog -- npx -y jetlog-cli mcp
+claude mcp add jetlog -- npx -y jetlog-cli@latest mcp
 ```
 
 [docs/AI.md](https://github.com/jvdvleuten/jetlog-cli/blob/main/docs/AI.md) has the details, the MCP tool list and how the
@@ -100,7 +103,7 @@ confirm step works.
 | `jetlog totals [file]` | Flight-time totals for a file, or for your account when no file is given | only without a file |
 | `jetlog ai convert <file>` | Convert messy text with an LLM, using your own API key | no |
 | `jetlog login`, `logout`, `whoami` | Sign in with the Jetlog app, sign out, show the active login | |
-| `jetlog entries list`, `people`, `aircraft` | Read your logbook | read |
+| `jetlog entries list`, `people`, `aircraft`, `places` | Read your logbook | read |
 | `jetlog export` | Download your whole logbook as JSON or CSV | read |
 | `jetlog attachments list`, `get` | List and download the files on an entry | read, files |
 | `jetlog photos get` | Download a person's photo | read, files |

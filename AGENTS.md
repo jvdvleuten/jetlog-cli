@@ -61,7 +61,11 @@ skipped when there is neither.
   round in `convert.ts`.
 - `src/changes-schema.ts`: the zod schema of the propose payload, shared by
   the MCP `propose_changes` tool and `jetlog changes propose` (and its JSON
-  Schema output). `commands/changes.ts` holds propose, show and apply.
+  Schema output). `commands/changes.ts` holds propose, show and apply. The
+  `data` of a `place` operation is checked against the strict
+  `placeDataSchema` in `src/schema.ts` before anything is sent, because the
+  server drops unknown place keys silently. Places are not part of the import
+  payload.
 - `docs/AGENT_GUIDE.md` and `skills/jetlog/SKILL.md`: the agent guide and the
   Agent Skill. `scripts/build.mjs` bundles both as text (esbuild `.md` loader;
   `vitest.config.ts` mirrors it), so `jetlog guide` and `jetlog skill install`
@@ -70,6 +74,14 @@ skipped when there is neither.
   project equivalents. Keep the guide the only copy of the agent rules.
 - `src/version.ts`: the version comes from package.json (esbuild `define` at
   build time). Bump it in package.json and server.json only.
+- `src/update-notice.ts`: the "newer jetlog-cli available" notice. `ApiClient`
+  passes every `x-jetlog-cli-latest` response header to it. A terminal command
+  prints the notice on stderr after it ran, at most once a day
+  (`update-notice.json` in the config folder). `jetlog mcp` never writes it to
+  a stream: `mcp.ts` puts it in the server instructions and appends it to the
+  first tool result once it is known. A 426 (version below the server's
+  minimum) throws an `ApiError` with the server's own text, also from
+  `requestRaw`, and suppresses the notice.
 - `src/mcp.ts`: the MCP server. The file tools (`upload_file`,
   `list_entry_attachments`, `download_attachment`, `create_upload_link`,
   `get_upload_link_status`) sit behind a gate that needs the `files` scope in

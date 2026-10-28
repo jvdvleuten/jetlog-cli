@@ -12,6 +12,8 @@
  */
 
 import { VERSION } from "../version.js";
+import { observeLatestVersion, suppressUpdateNotice } from "../update-notice.js";
+import { sanitizeForTerminal } from "../commands/output.js";
 
 export const DEFAULT_BASE_URL = "https://jetlog.app";
 
@@ -240,6 +242,21 @@ export const SIGNATURES_SCOPE_MESSAGE =
   "this login was made without the signatures permission, so signature images are not available. " +
   "Run `jetlog login` again and keep the signatures permission ticked.";
 
+/** What a 426 says when its body has no usable text. */
+export const UPGRADE_REQUIRED_MESSAGE = "this version of jetlog-cli is no longer supported. Run npm i -g jetlog-cli@latest to update.";
+
+/**
+ * The backend answers 426 when this CLI is below its minimum version, with the reason and the fix in a plain
+ * `error` string. That text is shown as it is (stripped of control characters and capped), never a generic error.
+ */
+async function upgradeRequiredError(response: Response): Promise<ApiError> {
+  suppressUpdateNotice();
+  const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  const raw = typeof body.error === "string" ? body.error : undefined;
+  const text = raw === undefined ? undefined : sanitizeForTerminal(raw).trim().slice(0, 300);
+  return new ApiError(text || UPGRADE_REQUIRED_MESSAGE, 426, "upgrade_required", undefined, { body });
+}
+
 export class ApiClient {
   readonly baseUrl: string;
   private readonly token?: string;
@@ -259,7 +276,9 @@ export class ApiClient {
    * structured error body (e.g. the pending-changes 409 `"stale"` response,
    * which carries a fresh preview alongside the error) can do so without
    * `ApiError` discarding it. Still retries 429/5xx the same way
-   * `request()` does. `request()` is built on top of this.
+   * `request()` does. `request()` is built on top of this. The one
+   * exception is a 426 (this CLI is too old), which no caller can handle
+   * and which throws an `ApiError` with the server's text.
    */
   async requestRaw<T = unknown>(
     path: string,
@@ -299,6 +318,9 @@ export class ApiClient {
         }
         throw new ApiError(`network error: ${(err as Error).message}`, 0);
       }
+
+      observeLatestVersion(response.headers.get("x-jetlog-cli-latest"));
+      if (response.status === 426) throw await upgradeRequiredError(response);
 
       const delay = await retryDelayMs(response, attempt, this.maxRetries, opts.retryOn ?? defaultRetryOn);
       if (delay !== undefined) {
@@ -392,6 +414,9 @@ export class ApiClient {
         throw new ApiError(`network error: ${(err as Error).message}`, 0);
       }
 
+      observeLatestVersion(response.headers.get("x-jetlog-cli-latest"));
+      if (response.status === 426) throw await upgradeRequiredError(response);
+
       const delay = await retryDelayMs(response, attempt, this.maxRetries, defaultRetryOn);
       if (delay !== undefined) {
         await sleep(delay);
@@ -475,6 +500,22 @@ export interface PeopleResponse {
 
 export interface AircraftResponse {
   aircraft: Record<string, unknown>[];
+}
+
+/** `GET /api/cli/v1/places`: one page of the pilot's own live places, ordered by code. */
+export interface PlacesPage {
+  places: Record<string, unknown>[];
+  limit: number;
+  offset: number;
+  /** The offset of the next page, or null on the last page. */
+  next_offset: number | null;
+}
+
+/** Largest page `/api/cli/v1/places` serves. */
+export const PLACES_MAX_LIMIT = 1000;
+
+export function listPlacesPage(client: ApiClient, query: { q?: string; limit?: number; offset?: number }): Promise<PlacesPage> {
+  return client.get<PlacesPage>("/api/cli/v1/places", { q: query.q, limit: query.limit, offset: query.offset });
 }
 
 export interface SyncEntriesPage {
@@ -636,7 +677,7 @@ export interface AirlinesResponse {
 
 export interface PendingChangeOperationInput {
   op: "create" | "update" | "delete";
-  resource: "entry" | "person" | "aircraft" | "fstd" | "entry_attachment" | "signature_link";
+  resource: "entry" | "person" | "aircraft" | "fstd" | "place" | "entry_attachment" | "signature_link";
   /** Required for update/delete; omit (or leave undefined) for create. */
   id?: string;
   data?: Record<string, unknown>;

@@ -18,6 +18,8 @@ import {
   getEntry,
   getPendingChange,
   getUploadLink,
+  listPlacesPage,
+  PLACES_MAX_LIMIT,
   proposeChanges,
   type AircraftResponse,
   type EntriesPage,
@@ -37,9 +39,11 @@ import { uploadFile } from "./attachments/upload.js";
 import { downloadRoot, fetchAttachment, saveInsideRoot } from "./attachments/download.js";
 import { sanitizeForTerminal } from "./commands/output.js";
 import { orNotFound } from "./commands/format.js";
+import { PLACES_MAX_QUERY_BYTES, placesQueryTooLong } from "./commands/places.js";
 import { PARTNER_MIGRATION_URL } from "./commands/push.js";
 import { proposeChangesShape } from "./changes-schema.js";
 import { VERSION } from "./version.js";
+import { currentUpdateNotice, latestVersionSeen } from "./update-notice.js";
 
 const DEFAULT_BASE_URL = "https://jetlog.app";
 
@@ -177,6 +181,35 @@ function autoAddedSentence(autoAdded: { index: number; role?: string }[]): strin
   return ` ${parts.join(" ")} Say so when you show the preview, so they can correct the role.`;
 }
 
+/** The update notice as the model reads it: the line itself, plus how a server started through npx updates. */
+function mcpUpdateNoticeText(notice: string): string {
+  return (
+    `Update: ${notice} (or restart this MCP server when it runs as npx -y jetlog-cli@latest mcp). ` +
+    "Mention this to the user once."
+  );
+}
+
+/**
+ * Wraps every tool registered after this call so the update notice is appended, as one extra text item, to the
+ * first tool result of the session that comes after the notice is known. The structured content stays as it is.
+ * A 426 (this CLI is too old) already says how to update, so no notice follows it.
+ */
+function appendUpdateNoticeOnce(server: McpServer, startupNotice: string | undefined): void {
+  let delivered = false;
+  const register = server.registerTool.bind(server) as (name: string, config: unknown, cb: (...args: unknown[]) => unknown) => unknown;
+  const wrapped = (name: string, config: unknown, cb: (...args: unknown[]) => unknown) =>
+    register(name, config, async (...args: unknown[]) => {
+      const result = (await cb(...args)) as { content?: unknown[] } | undefined;
+      if (delivered || !result || !Array.isArray(result.content)) return result;
+      // What a response of this session said wins over what an earlier run stored.
+      const notice = latestVersionSeen() === undefined ? startupNotice : await currentUpdateNotice();
+      if (!notice) return result;
+      delivered = true;
+      return { ...result, content: [...result.content, { type: "text", text: mcpUpdateNoticeText(notice) }] };
+    });
+  server.registerTool = wrapped as typeof server.registerTool;
+}
+
 function textError(text: string) {
   return { content: [{ type: "text" as const, text }], isError: true as const };
 }
@@ -204,10 +237,17 @@ export async function createMcpServer(): Promise<McpServer> {
         ? "write"
         : "read";
 
+  // A newer jetlog-cli the backend named on an earlier run is known now; one named during this session is not
+  // until a response carries it. Either way the model hears it once, appended to a tool result, never on stdout.
+  const startupNotice = await currentUpdateNotice({ useStored: true });
   const server = new McpServer(
     { name: "jetlog-cli", version: VERSION },
-    { instructions: accessInstructions(access, readProfile) }
+    {
+      instructions:
+        accessInstructions(access, readProfile) + (startupNotice ? ` ${mcpUpdateNoticeText(startupNotice)}` : "")
+    }
   );
+  appendUpdateNoticeOnce(server, startupNotice);
 
   /** Returns an error result when the tool cannot run in the current access state, else undefined. */
   const accessGate = (need: "read" | "write"): ReturnType<typeof textError> | undefined => {
@@ -714,6 +754,48 @@ export async function createMcpServer(): Promise<McpServer> {
         return { content: [{ type: "text", text: JSON.stringify(page, null, 2) }] };
       }
     );
+
+    server.registerTool(
+      "list_places",
+      {
+        title: "List places in the user's own Jetlog logbook",
+        description:
+          "Lists the places (airports and the user's own custom places) in the logged-in user's own Jetlog logbook, " +
+          "ordered by code, with their ids for a place update or delete in propose_changes. `q` matches a code " +
+          "(code, ICAO or IATA) by prefix or the name by part, any case. Paged: pass the returned next_offset as " +
+          "offset for the next page (null on the last page).",
+        inputSchema: {
+          q: z
+            .string()
+            .max(PLACES_MAX_QUERY_BYTES)
+            .refine((v) => !placesQueryTooLong(v), `at most ${PLACES_MAX_QUERY_BYTES} bytes`)
+            .optional()
+            .describe("Code prefix or part of the name, any case. At most 255 bytes."),
+          limit: z.number().int().min(1).max(PLACES_MAX_LIMIT).optional().describe("Page size, default 500."),
+          offset: z.number().int().min(0).optional()
+        },
+        outputSchema: {
+          places: z.array(z.record(z.string(), z.unknown())),
+          limit: z.number().int(),
+          offset: z.number().int(),
+          next_offset: z.number().int().nullable()
+        },
+        annotations: { readOnlyHint: true }
+      },
+      async ({ q, limit, offset }) => {
+        const blocked = accessGate("read");
+        if (blocked || !client) return blocked ?? textError(accessMessage("none", readProfile, "read"));
+        try {
+          const page = await listPlacesPage(client, { q, limit, offset });
+          const next = typeof page.next_offset === "number" ? page.next_offset : null;
+          const result = { places: page.places, limit: page.limit, offset: page.offset, next_offset: next };
+          const summary = `${page.places.length} place${page.places.length === 1 ? "" : "s"}.${next !== null ? ` More with offset ${next}.` : ""}`;
+          return { structuredContent: result, content: [{ type: "text", text: `${summary}\n${JSON.stringify(result, null, 2)}` }] };
+        } catch (err) {
+          return textError(`error: ${(err as Error).message}`);
+        }
+      }
+    );
   }
 
   // File tools: entry files, person photos and signature images.
@@ -993,7 +1075,7 @@ export async function createMcpServer(): Promise<McpServer> {
         title: "Propose changes to the user's Jetlog logbook (nothing is written)",
         description:
           "Proposes one or more create/update/delete operations on the user's logbook (entries, people, " +
-          "aircraft, FSTD sessions, entry files, or signing links). NOTHING IS WRITTEN by this call. It returns a preview " +
+          "aircraft, FSTD sessions, places, entry files, or signing links). NOTHING IS WRITTEN by this call. It returns a preview " +
           "(before/after per operation, plus counts of creates/updates/deletes). Show this preview to the " +
           "user and get their EXPLICIT confirmation in this conversation before calling apply_changes with " +
           "the returned pending_id. A write-scoped login is required even though this call itself never " +
@@ -1015,6 +1097,13 @@ export async function createMcpServer(): Promise<McpServer> {
           "system_aircraft_iata_code, is_deleted.\n" +
           "- fstd: use_system, aircraft_icao_code, system_aircraft_icao_code, nickname, device_category, " +
           "is_deleted.\n" +
+          "- place (an airport or the pilot's own place, ids from list_places): icao, iata, code, name, latitude, " +
+          "longitude (JSON numbers), country_code (two letters), timezone (IANA, e.g. Europe/Amsterdam), kind " +
+          "(only \"airport\"), is_deleted. For an official airport send icao and/or iata and leave code out (the " +
+          "server sets it); for a place without those codes send code. The code cannot change on an update: delete " +
+          "the place and create a new one. No two live places may share a code, ICAO or IATA value. On an update null " +
+          "clears icao, iata, name, latitude, longitude, country_code or timezone. Any other key " +
+          "is rejected before anything is sent.\n" +
           "- entry_attachment (a file on an entry; upload the bytes first with upload_file): create with data " +
           "{entry_id, attachment_id, file_name?}, delete with the row `id` from list_entry_attachments. No update. " +
           "An entry holds at most 20 files.\n" +
@@ -1042,7 +1131,7 @@ export async function createMcpServer(): Promise<McpServer> {
           "genuinely not crew on that flight. The reply lists the crew per created entry (`crew`) and says when the " +
           "pilot was added automatically: mention the pilot's role when you show the preview so they can correct it. If no default role is known the proposal is rejected with an " +
           "error on `people`: ask the pilot which role they flew, then propose again with SELF and that role.\n\n" +
-          "Use search_entries/list_people/list_aircraft first to find the ids an update/delete needs, and the " +
+          "Use search_entries/list_people/list_aircraft/list_places first to find the ids an update/delete needs, and the " +
           "person_ids of OTHER crew. " +
           "A \"delete\" is a soft delete (is_deleted: true) and is reported as such in the preview, so " +
           "call this out explicitly when summarizing deletes to the user.",

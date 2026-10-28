@@ -6,13 +6,13 @@
     "url": "https://github.com/jvdvleuten/jetlog-cli",
     "source": "github"
   },
-  "version": "0.2.0",
+  "version": "0.2.1",
   "websiteUrl": "https://jetlog.app/docs/ai-assistants-and-the-cli",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "jetlog-cli",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "runtimeArguments": [],
       "packageArguments": [{ "type": "positional", "value": "mcp" }],
       "transport": { "type": "stdio" }

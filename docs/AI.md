@@ -5,7 +5,7 @@
 For Claude Code, Codex and other coding agents, the recommended way is the
 `jetlog` command line plus the Jetlog skill. The agent runs `jetlog` commands
 in your shell. It can read your logbook, search, export, import files and make
-targeted edits to entries, people and aircraft. No MCP server is needed.
+targeted edits to entries, people, aircraft and places. No MCP server is needed.
 
 ```sh
 npm i -g jetlog-cli
@@ -42,8 +42,8 @@ replaces an older Jetlog skill. `jetlog skill uninstall` removes it.
 
 1. You ask for a change, for example "fix the registration on yesterday's
    flight".
-2. The agent looks up the ids with `jetlog entries list`, `jetlog people` and
-   `jetlog aircraft`, then runs `jetlog changes propose`. Nothing is written.
+2. The agent looks up the ids with `jetlog entries list`, `jetlog people`,
+   `jetlog aircraft` and `jetlog places`, then runs `jetlog changes propose`. Nothing is written.
    It prints a preview with the before and after of every changed field, and a
    change id. `jetlog changes schema` prints the JSON Schema of the payload.
 3. The agent shows you that preview. You say yes, no, or ask for something
@@ -71,7 +71,7 @@ cannot use this local server.
 Claude Code:
 
 ```sh
-claude mcp add jetlog -- npx -y jetlog-cli mcp
+claude mcp add jetlog -- npx -y jetlog-cli@latest mcp
 ```
 
 Claude Desktop, in `claude_desktop_config.json`:
@@ -79,14 +79,19 @@ Claude Desktop, in `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "jetlog": { "command": "npx", "args": ["-y", "jetlog-cli", "mcp"] }
+    "jetlog": { "command": "npx", "args": ["-y", "jetlog-cli@latest", "mcp"] }
   }
 }
 ```
 
 Any other client that supports local (stdio) MCP servers works the same way:
-the command is `npx -y jetlog-cli mcp`, or `jetlog mcp` when the package is
-installed globally.
+the command is `npx -y jetlog-cli@latest mcp`, or `jetlog mcp` when the
+package is installed globally.
+
+With `@latest`, npx checks for a newer version each time the client starts the
+server, so restarting the client updates it. A global install updates with
+`npm i -g jetlog-cli@latest`. When a newer version is out, the server tells the
+assistant, which passes it on to you.
 
 ## Log in
 
@@ -130,12 +135,13 @@ Read your logbook, needs a login:
 | `search_entries` | Search entries by date, aircraft, airport, flight number or crew |
 | `list_people` | People in your logbook |
 | `list_aircraft` | Aircraft in your logbook |
+| `list_places` | Places in your logbook (airports and your own places), searchable by code or name, paged |
 
 Edit your logbook, needs a login with `--scope write`:
 
 | Tool | What it does |
 | --- | --- |
-| `propose_changes` | Propose creating, updating or deleting entries, people, aircraft or simulator sessions, and adding files, photos, signatures and signing links. Writes nothing and returns a preview |
+| `propose_changes` | Propose creating, updating or deleting entries, people, aircraft, simulator sessions or places, and adding files, photos, signatures and signing links. Writes nothing and returns a preview |
 | `apply_changes` | Write a proposed change, after you confirmed it. A signing link that the change created is returned in `links` |
 | `get_change_status` | Whether a proposal is pending, applied, rejected, stale or expired |
 

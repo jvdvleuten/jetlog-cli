@@ -18,6 +18,7 @@ import { whoami } from "./commands/whoami.js";
 import { entriesList, requireClient } from "./commands/entries.js";
 import { peopleList } from "./commands/people.js";
 import { aircraftList } from "./commands/aircraft.js";
+import { placesList } from "./commands/places.js";
 import { runExport } from "./commands/export.js";
 import { runImport } from "./commands/import.js";
 import { batchesList, batchesRemove, batchesRemoveAllCli } from "./commands/batches.js";
@@ -40,6 +41,7 @@ import { parseOutputFormat } from "./commands/output.js";
 import { ApiError } from "./api/client.js";
 import { formatEntryTimesTable, formatTotalsSummary } from "./commands/times-format.js";
 import { terminalNoticeLines, type ImportNotice } from "./import/warnings.js";
+import { printUpdateNoticeIfDue } from "./update-notice.js";
 
 const program = new Command();
 program
@@ -474,6 +476,28 @@ addReadFormatOptions(program.command("aircraft").description("List aircraft in y
   }
 );
 
+addReadFormatOptions(
+  program
+    .command("places")
+    .description("List the places in your logbook (airports and your own places), or search them")
+    .option("--search <text>", "code prefix (code, ICAO or IATA) or part of the name, any case")
+    .option("--limit <n>", "one page of this many places, max 1000 (default: every place)")
+    .option("--offset <n>", "start the page at this offset (default: every place)")
+).action(
+  async (opts: { profile: string; baseUrl?: string; json?: boolean; csv?: boolean; table?: boolean; search?: string; limit?: string; offset?: string }) => {
+    await runReadCommand(() =>
+      placesList({
+        profile: opts.profile,
+        baseUrl: opts.baseUrl,
+        format: parseOutputFormat(opts),
+        search: opts.search,
+        limit: opts.limit !== undefined ? Number(opts.limit) : undefined,
+        offset: opts.offset !== undefined ? Number(opts.offset) : undefined
+      })
+    );
+  }
+);
+
 program
   .command("export")
   .description("Export your full logbook (paginated, streamed to disk)")
@@ -874,7 +898,7 @@ signatures
 const changes = program
   .command("changes")
   .description(
-    "Propose, inspect and apply targeted edits to existing entries, people and aircraft " +
+    "Propose, inspect and apply targeted edits to existing entries, people, aircraft and places " +
       "(requires `jetlog login --scope write`). Propose writes nothing; apply writes after a confirmation."
   );
 
@@ -890,8 +914,10 @@ changes
     `
 Payload: {"summary": "...", "operations": [{"op", "resource", "id", "data"}]}.
 op is create, update or delete. resource is entry, person, aircraft, fstd,
-entry_attachment or signature_link. Print the full JSON Schema with
-\`jetlog changes schema\`. Times are UTC, "HH:MM".
+place, entry_attachment or signature_link. Print the full JSON Schema with
+\`jetlog changes schema\`. Times are UTC, "HH:MM". A place takes only icao,
+iata, code, name, latitude, longitude, country_code, timezone, kind and
+is_deleted (see \`jetlog places\` for the ids).
 
 Example, correct the registration of one entry:
 
@@ -990,12 +1016,19 @@ skill
   .option("--project", "remove from this project instead of your home folder")
   .action(skillAction("skillUninstall"));
 
+/** Set by `jetlog mcp`: stdout carries the protocol there, and the notice goes to the model instead. */
+let mcpMode = false;
+
 program
   .command("mcp")
   .description("Run a stdio MCP server exposing Jetlog import tools")
   .action(async () => {
+    mcpMode = true;
     const { runMcpServer } = await import("./mcp.js");
     await runMcpServer();
   });
 
-program.parseAsync(process.argv);
+// After the command, one stderr line when the server said a newer jetlog-cli exists (at most once a day).
+void program.parseAsync(process.argv).then(async () => {
+  if (!mcpMode) await printUpdateNoticeIfDue();
+});
