@@ -93,6 +93,8 @@ const BULK_REMAINDER_MARKER = "[Unassigned remainder]";
 
 const PROTECTED_NON_PILOT_ROLES: EntryPersonRole[] = [
   "DH",
+  "OBS",
+  "SAFETY",
   "CRCP",
   "RI",
   "RI_CP",
@@ -582,7 +584,7 @@ function addFlightCrew(columns: string[], headers: string[], people: Map<string,
 
   for (const column of ["flight_selectedCrewObserver", "flight_selectedCrewObserver2"]) {
     const observer = getPerson(columns, headers, column, people);
-    if (observer) updateCrew(entry, { refId: observer.refId, role: "LCA" });
+    if (observer) updateCrew(entry, { refId: observer.refId, role: "OBS" });
   }
 
   const purser = getPerson(columns, headers, "flight_selectedCrewPurser", people);

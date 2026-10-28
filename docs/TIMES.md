@@ -48,7 +48,7 @@ instructor, SPIC or PICUS time is. Overrides that need a role (PIC from the
 right seat, the SPIC dual carve, the CRCP credit, imported PIC/co-pilot
 columns on a bulk row) do not apply, so a bulk row keeps only its role-free
 totals. The EASA row shows class, total, night and IFR with empty function
-columns. Deadhead and the observer roles are unchanged. Neither the logged-in
+columns. Deadhead and the observer roles (including Observer and Safety Pilot, which log no EASA time) are unchanged. Neither the logged-in
 account nor a file skips such entries. In a file, an entry without a `SELF`
 person is calculated this way too; if no row at all has one (usually a wrong
 `--self` name or a missing `--self-role`), a stderr warning says so.

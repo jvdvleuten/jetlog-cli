@@ -62,8 +62,14 @@ function calculateEASADual(d: DetailedTimes, hasSignature: boolean): number | un
  * value that isn't already persisted there.
  */
 export function easaTimes(d: DetailedTimes, hasSignature: boolean, numberOfActiveCrew: number): EASATimes {
-  // Observer-type roles don't log any EASA time: deadhead, LCA observer, SI observer.
-  if (d.deadHeadRole !== undefined || d.lineCheckAirmanRole !== undefined || d.seniorInstructorObserverRole !== undefined) {
+  // Observer-type roles don't log any EASA time: deadhead, LCA observer, SI observer, observer, safety pilot.
+  if (
+    d.deadHeadRole !== undefined ||
+    d.lineCheckAirmanRole !== undefined ||
+    d.seniorInstructorObserverRole !== undefined ||
+    d.observerRole !== undefined ||
+    d.safetyPilotRole !== undefined
+  ) {
     return {};
   }
 

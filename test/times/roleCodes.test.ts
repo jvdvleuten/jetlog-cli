@@ -108,6 +108,12 @@ describe("mapImportedRoleCode: aliases the iOS app accepts for raw role strings"
     ["STUDENT", "student"],
     ["DHD", "deadHead"],
     ["DEADHEAD", "deadHead"],
+    ["OBSERVER", "observer"],
+    ["JUMPSEAT", "observer"],
+    ["jumpseat", "observer"],
+    ["SAFETY_PILOT", "safetyPilot"],
+    ["SAFETYPILOT", "safetyPilot"],
+    ["safety pilot", "safetyPilot"],
     ["TRAINEE", "fstdTrainee"]
   ];
 

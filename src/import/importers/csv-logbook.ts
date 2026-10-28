@@ -141,6 +141,8 @@ export function roleFromCode(code: string | undefined): EntryPersonRole | undefi
     "SI_PIC",
     "SI_CP",
     "SI_OBS",
+    "OBS",
+    "SAFETY",
     "STU",
     "DH",
     "CA",

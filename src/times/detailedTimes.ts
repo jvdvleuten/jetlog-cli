@@ -67,6 +67,12 @@ export function attribute(detailed: DetailedTimes, block: number | undefined, ro
     case "deadHead":
       detailed.deadHeadRole = block;
       break;
+    case "observer":
+      detailed.observerRole = block;
+      break;
+    case "safetyPilot":
+      detailed.safetyPilotRole = block;
+      break;
     case "fstdTrainee":
     case "fstdInstructor":
     case "fstdExaminer":

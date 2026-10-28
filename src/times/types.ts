@@ -25,6 +25,8 @@ export type EntryPersonRoleName =
   | "seniorInstructorObserver"
   | "student"
   | "deadHead"
+  | "observer"
+  | "safetyPilot"
   | "cabinAttendant"
   | "seniorCabinAttendant"
   | "purser"
@@ -120,6 +122,8 @@ export interface DetailedTimes {
   seniorInstructorCoPilotRole?: number;
   seniorInstructorObserverRole?: number;
   deadHeadRole?: number;
+  observerRole?: number;
+  safetyPilotRole?: number;
   routeInstructorRole?: number;
   routeInstructorCoPilotRole?: number;
   coPilotRole?: number;

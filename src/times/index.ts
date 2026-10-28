@@ -27,9 +27,10 @@ export { inPeriod, type Period } from "./period.js";
  * padded, local-code and user-place codes now resolve for night time) plus
  * derived-date bucketing. 4 = a flight or bulk row where the user is not in
  * the crew is calculated like an `unknown` role (role-free times, no
- * pilot-function time) instead of an empty result.
+ * pilot-function time) instead of an empty result. 5 = the observer and safety pilot roles, which log no
+ * EASA time (like deadhead).
  */
-export const CALCULATOR_VERSION = 4;
+export const CALCULATOR_VERSION = 5;
 export { aggregateTotals, applyAtplCaps, type Totals, type EntryTimesForTotals, type AtplCaps, type FstdDeviceCategory } from "./aggregator.js";
 export { payloadEntryToCalcEntry, PAYLOAD_ROLE_TO_CALC_ROLE } from "./adapter.js";
 export { mapRoleCode, mapApiRoleCode, mapImportedRoleCode, WIRE_ROLE_TO_CALC_ROLE, ACTIVE_CREW_ROLES } from "./roleCodes.js";

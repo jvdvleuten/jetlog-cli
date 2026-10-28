@@ -84,6 +84,8 @@ function normalizeRole(raw: string | undefined): EntryPersonRole | undefined {
     "SI_PIC",
     "SI_CP",
     "SI_OBS",
+    "OBS",
+    "SAFETY",
     "STU",
     "DH",
     "CA",

@@ -1,5 +1,5 @@
 {
-  "calculatorVersion" : 4,
+  "calculatorVersion" : 5,
   "cases" : [
     {
       "category" : "aircraft_classification",
@@ -24419,6 +24419,190 @@
       "name" : "role_lineCheckAirman_red_eye"
     },
     {
+      "category" : "role_observer",
+      "expected" : {
+        "derivedDate" : "2024-06-15",
+        "detailedTimes" : {
+          "ifr" : 120,
+          "night" : 0,
+          "observerRole" : 120,
+          "totalTimeOfFlight" : 120
+        },
+        "easaTimesSigned" : {
+
+        },
+        "easaTimesUnsigned" : {
+
+        },
+        "inPeriod" : null,
+        "night" : 0,
+        "resolved" : {
+          "from" : {
+            "hasPosition" : true,
+            "identity" : "EHAM",
+            "lat" : 52.3086,
+            "lon" : 4.7639,
+            "timezone" : null
+          },
+          "to" : {
+            "hasPosition" : true,
+            "identity" : "LFPG",
+            "lat" : 49.0097,
+            "lon" : 2.5479,
+            "timezone" : null
+          }
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+          {
+            "iata" : null,
+            "icao" : "EHAM",
+            "id" : "00000000-0000-4000-8001-000000000001",
+            "isDeleted" : false,
+            "lat" : 52.3086,
+            "localCode" : null,
+            "lon" : 4.7639,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          },
+          {
+            "iata" : null,
+            "icao" : "LFPG",
+            "id" : "00000000-0000-4000-8001-000000000002",
+            "isDeleted" : false,
+            "lat" : 49.0097,
+            "localCode" : null,
+            "lon" : 2.5479,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          }
+        ],
+        "entry" : {
+          "date" : "2024-06-15",
+          "from" : "EHAM",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "offBlocks" : "10:00",
+          "onBlocks" : "12:00",
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "992CBA63-E047-4AE3-84BC-196BDC1A3F06",
+              "role" : "observer"
+            }
+          ],
+          "to" : "LFPG",
+          "type" : "flight",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "selfRole" : "observer",
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "role_observer"
+    },
+    {
+      "category" : "role_observer",
+      "expected" : {
+        "derivedDate" : "2024-06-15",
+        "detailedTimes" : {
+          "ifr" : 240,
+          "night" : 240,
+          "observerRole" : 240,
+          "totalTimeOfFlight" : 240
+        },
+        "easaTimesSigned" : {
+
+        },
+        "easaTimesUnsigned" : {
+
+        },
+        "inPeriod" : null,
+        "night" : 240,
+        "resolved" : {
+          "from" : {
+            "hasPosition" : true,
+            "identity" : "EHAM",
+            "lat" : 52.3086,
+            "lon" : 4.7639,
+            "timezone" : null
+          },
+          "to" : {
+            "hasPosition" : true,
+            "identity" : "LFPG",
+            "lat" : 49.0097,
+            "lon" : 2.5479,
+            "timezone" : null
+          }
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+          {
+            "iata" : null,
+            "icao" : "EHAM",
+            "id" : "00000000-0000-4000-8001-000000000001",
+            "isDeleted" : false,
+            "lat" : 52.3086,
+            "localCode" : null,
+            "lon" : 4.7639,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          },
+          {
+            "iata" : null,
+            "icao" : "LFPG",
+            "id" : "00000000-0000-4000-8001-000000000002",
+            "isDeleted" : false,
+            "lat" : 49.0097,
+            "localCode" : null,
+            "lon" : 2.5479,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          }
+        ],
+        "entry" : {
+          "date" : "2024-06-15",
+          "from" : "EHAM",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "offBlocks" : "23:00",
+          "onBlocks" : "3:00",
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "992CBA63-E047-4AE3-84BC-196BDC1A3F06",
+              "role" : "observer"
+            }
+          ],
+          "to" : "LFPG",
+          "type" : "flight",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "selfRole" : "observer",
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "role_observer_red_eye"
+    },
+    {
       "category" : "role_picus_signed",
       "expected" : {
         "derivedDate" : "2024-06-15",
@@ -24907,6 +25091,98 @@
         ]
       },
       "name" : "role_routeInstructorCoPilot"
+    },
+    {
+      "category" : "role_safetyPilot",
+      "expected" : {
+        "derivedDate" : "2024-06-15",
+        "detailedTimes" : {
+          "ifr" : 120,
+          "night" : 0,
+          "safetyPilotRole" : 120,
+          "totalTimeOfFlight" : 120
+        },
+        "easaTimesSigned" : {
+
+        },
+        "easaTimesUnsigned" : {
+
+        },
+        "inPeriod" : null,
+        "night" : 0,
+        "resolved" : {
+          "from" : {
+            "hasPosition" : true,
+            "identity" : "EHAM",
+            "lat" : 52.3086,
+            "lon" : 4.7639,
+            "timezone" : null
+          },
+          "to" : {
+            "hasPosition" : true,
+            "identity" : "LFPG",
+            "lat" : 49.0097,
+            "lon" : 2.5479,
+            "timezone" : null
+          }
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+          {
+            "iata" : null,
+            "icao" : "EHAM",
+            "id" : "00000000-0000-4000-8001-000000000001",
+            "isDeleted" : false,
+            "lat" : 52.3086,
+            "localCode" : null,
+            "lon" : 4.7639,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          },
+          {
+            "iata" : null,
+            "icao" : "LFPG",
+            "id" : "00000000-0000-4000-8001-000000000002",
+            "isDeleted" : false,
+            "lat" : 49.0097,
+            "localCode" : null,
+            "lon" : 2.5479,
+            "name" : null,
+            "timezone" : null,
+            "updatedAt" : "2024-01-01T00:00:00.000000Z",
+            "version" : null
+          }
+        ],
+        "entry" : {
+          "date" : "2024-06-15",
+          "from" : "EHAM",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "offBlocks" : "10:00",
+          "onBlocks" : "12:00",
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "992CBA63-E047-4AE3-84BC-196BDC1A3F06",
+              "role" : "safetyPilot"
+            }
+          ],
+          "to" : "LFPG",
+          "type" : "flight",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "selfRole" : "safetyPilot",
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "role_safetyPilot"
     },
     {
       "category" : "role_seniorInstructorCoPilot",

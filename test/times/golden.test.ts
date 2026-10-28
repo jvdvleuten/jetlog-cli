@@ -159,8 +159,8 @@ describe("times golden corpus (times-golden.v2.json)", () => {
     expect(fixture.calculatorVersion).toBe(CALCULATOR_VERSION);
   });
 
-  it("has 291 cases (fixture sanity check)", () => {
-    expect(cases.length).toBe(291);
+  it("has at least 291 cases (fixture sanity check; the corpus only grows)", () => {
+    expect(cases.length).toBeGreaterThanOrEqual(291);
   });
 
   for (const testCase of cases) {

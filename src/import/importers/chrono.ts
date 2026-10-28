@@ -146,6 +146,8 @@ const KNOWN_ROLES = new Set<string>([
   "SI_PIC",
   "SI_CP",
   "SI_OBS",
+  "OBS",
+  "SAFETY",
   "STU",
   "DH",
   "CA",

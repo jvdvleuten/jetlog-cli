@@ -140,6 +140,8 @@ export type EntryPersonRole =
   | "SI_OBS" // seniorInstructorObserver
   | "STU" // student
   | "DH" // deadHead
+  | "OBS" // observer
+  | "SAFETY" // safetyPilot
   | "CA" // cabinAttendant
   | "CS" // seniorCabinAttendant
   | "Purser" // purser
