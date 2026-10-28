@@ -31,6 +31,7 @@ export interface RemotePerson {
   first_name?: string | null;
   last_name?: string | null;
   employee_number?: string | null;
+  notes?: string | null;
   is_deleted?: boolean;
 }
 

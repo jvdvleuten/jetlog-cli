@@ -30,6 +30,7 @@ These never change anything, run them freely:
   `--from`, `--to` (YYYY-MM-DD), `--type`, `--registration`, `--airport`,
   `--flight-number`, `--person-id`, `--role`, `--limit`, `--all`, `--json`.
 - `jetlog people` and `jetlog aircraft` list crew and aircraft with their ids.
+  A person's `notes` show in `jetlog people --json`.
 - `jetlog totals` gives flight-time totals for the account (or for a file).
   Do not add up times yourself.
 - `jetlog export -o logbook.json` writes the full logbook to disk.

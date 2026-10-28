@@ -283,9 +283,20 @@ export interface ImportedPerson {
   lastName?: string;
   defaultRole?: EntryPersonRole;
   employeeNumber?: string;
+  /** Free-text notes about the person. */
+  notes?: string;
   isExisting: { existing: false } | { existing: true; id: string };
   isImportedFromOtherLogbook?: boolean;
   preferredNewId?: string;
+}
+
+/** The longest person note the server accepts. */
+export const MAX_PERSON_NOTES_LENGTH = 10000;
+
+/** Trimmed, cut to the server's limit; `undefined` when nothing is left, so an empty note is never sent. */
+export function normalizedPersonNotes(notes: string | null | undefined): string | undefined {
+  const trimmed = notes?.trim();
+  return trimmed ? trimmed.slice(0, MAX_PERSON_NOTES_LENGTH) : undefined;
 }
 
 /** Mirrors `ImportedPerson.displayName`. */

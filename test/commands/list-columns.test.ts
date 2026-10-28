@@ -91,6 +91,19 @@ describe("list columns from the attachments release", () => {
     expect(JSON.parse(out.join(""))).toEqual(PEOPLE_ROWS.people);
   });
 
+  it("people --json carries notes, and the table stays on its columns", async () => {
+    const rows = { people: [{ id: "p1", first_name: "Jan", last_name: "Jansen", notes: "prefers the left seat" }] };
+    await withServer(jsonHandler(200, rows), async () => {
+      await peopleList({ profile: "default", format: "json" });
+    });
+    expect(JSON.parse(out.join(""))).toEqual(rows.people);
+    out.length = 0;
+    await withServer(jsonHandler(200, rows), async () => {
+      await peopleList({ profile: "default", format: "table" });
+    });
+    expect(out.join("\n")).not.toContain("notes");
+  });
+
   it("people keeps its five columns against a backend that sends no photo state", async () => {
     await withServer(jsonHandler(200, { people: [{ id: "p1", first_name: "Jan", last_name: "Jansen" }] }), async () => {
       await peopleList({ profile: "default", format: "table" });

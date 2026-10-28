@@ -224,6 +224,24 @@ describe("LogTen Address Book crew resolution", () => {
     expect(john.employeeNumber).toBe("4821");
   });
 
+  it("keeps the Comment as notes, except when it served as the employee number", () => {
+    const content = [
+      "Name\tFull Name\tID\tComment\tThis is Me\tDefault Capacity",
+      "Ann Aa\tAnn Aa\tE100\tprefers the left seat\t\t",
+      "Bob Bb\tBob Bb\t\tEmployee #4821\t\t",
+      "Cy Cc\tCy Cc\t\tnice person\t\t"
+    ].join("\n");
+    const { people } = parseLogTenAddressBook(content);
+    const byName = (n: string) => people.find((p) => p.refId === n)!;
+    expect(byName("Ann Aa").employeeNumber).toBe("E100");
+    expect(byName("Ann Aa").notes).toBe("prefers the left seat");
+    expect(byName("Bob Bb").employeeNumber).toBe("4821");
+    expect(byName("Bob Bb").notes).toBeUndefined();
+    expect(byName("Cy Cc").notes).toBe("nice person");
+    const merged = mergeLogTenPeople([{ refId: "Ann Aa", isExisting: { existing: false as const } }], people);
+    expect(merged.find((p) => p.refId === "Ann Aa")!.notes).toBe("prefers the left seat");
+  });
+
   it("the main importer merges in address book data when addressBookContent is supplied", async () => {
     const result = await parse("basic-flights.txt", { addressBookContent: fixture("address-book.txt") });
     const john = result.people.find((p) => p.refId === "John Smith")!;

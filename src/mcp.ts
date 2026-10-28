@@ -1010,7 +1010,7 @@ export async function createMcpServer(): Promise<McpServer> {
           "on_blocks) the server sets it to false (manual times) so those times show up in the app; set it " +
           "explicitly only to override (e.g. a future flight left on live tracking). UPDATEs never change " +
           "an entry's tracking mode unless you send update_flight_data yourself.\n" +
-          "- person: first_name, last_name, default_role, employee_number, is_deleted.\n" +
+          "- person: first_name, last_name, default_role, employee_number, notes, is_deleted.\n" +
           "- aircraft: use_system, aircraft_icao_code, aircraft_iata_code, system_aircraft_icao_code, " +
           "system_aircraft_iata_code, is_deleted.\n" +
           "- fstd: use_system, aircraft_icao_code, system_aircraft_icao_code, nickname, device_category, " +

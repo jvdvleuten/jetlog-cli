@@ -16,7 +16,7 @@
  */
 import type { EntryInput, PayloadInput } from "../schema.js";
 import type { ImportResult, ImportedEntry } from "./model.js";
-import { formatTimeOfDay } from "./model.js";
+import { formatTimeOfDay, normalizedPersonNotes } from "./model.js";
 
 export interface ToPayloadResult {
   payload: PayloadInput;
@@ -97,7 +97,8 @@ export function importResultToPayload(result: ImportResult): ToPayloadResult {
       first_name: p.firstName ?? "",
       last_name: p.lastName ?? "",
       default_role: p.defaultRole ? (typeof p.defaultRole === "string" ? p.defaultRole : p.defaultRole.unknown) : undefined,
-      employee_number: p.employeeNumber
+      employee_number: p.employeeNumber,
+      notes: normalizedPersonNotes(p.notes)
     }));
 
   return {

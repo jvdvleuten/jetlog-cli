@@ -31,6 +31,7 @@ import { looksLikeZip, unzipEntries, decodeZipText } from "../zip.js";
 import {
   emptyImportResult,
   newImportedEntry,
+  normalizedPersonNotes,
   time,
   truncatedRemarks,
   type EntryPersonRole,
@@ -113,7 +114,7 @@ export const JETLOG_CSV_HEADERS = {
     "Crew 5 Role",
     "Manual Session Time"
   ],
-  people: ["Jetlog ID", "Code", "First Name", "Last Name", "Employee Number", "Default Role"],
+  people: ["Jetlog ID", "Code", "First Name", "Last Name", "Employee Number", "Default Role", "Notes"],
   aircraft: ["Registration", "ICAO Type", "IATA Type"]
 } as const;
 
@@ -311,6 +312,7 @@ export function parseSheets(parsed: ParsedFiles, importErrors: ImportError[]): I
       firstName: row["First Name"] || undefined,
       lastName: row["Last Name"] || undefined,
       employeeNumber: row["Employee Number"] || undefined,
+      notes: normalizedPersonNotes(row["Notes"]),
       defaultRole: roleFromCode(row["Default Role"]),
       isExisting: { existing: false },
       isImportedFromOtherLogbook: true

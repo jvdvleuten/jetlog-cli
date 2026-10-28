@@ -40,6 +40,27 @@ describe("buildWritePlan", () => {
     expect(plan.people[0]!.fields.first_name).toBe("Jane");
   });
 
+  it("gives a new person its notes", () => {
+    const result: ImportResult = {
+      ...emptyImportResult(),
+      people: [{ refId: "p1", firstName: "Jane", lastName: "Doe", notes: "likes tea", isExisting: { existing: false } }]
+    };
+    expect(buildWritePlan(result, mirror()).people[0]!.fields.notes).toBe("likes tea");
+  });
+
+  it("sends notes for a matched person only when the stored note is empty, never over a non-empty one", () => {
+    const result: ImportResult = {
+      ...emptyImportResult(),
+      people: [{ refId: "p1", firstName: "Jane", lastName: "Doe", notes: "imported note", isExisting: { existing: false } }]
+    };
+    const planFor = (notes: string | null | undefined) =>
+      buildWritePlan(result, mirror({ people: [{ id: "jane", first_name: "Jane", last_name: "Doe", notes }] })).people[0]!.fields;
+    expect(planFor("their own note")).not.toHaveProperty("notes");
+    expect(planFor("  ").notes).toBe("imported note");
+    expect(planFor(null).notes).toBe("imported note");
+    expect(planFor(undefined).notes).toBe("imported note");
+  });
+
   it("matches an existing person by exact name instead of creating a duplicate", () => {
     const result: ImportResult = {
       ...emptyImportResult(),

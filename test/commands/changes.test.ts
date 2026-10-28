@@ -186,6 +186,21 @@ describe("changes commands", () => {
       }
     });
 
+    it("accepts notes on a person", async () => {
+      const ops = [{ op: "update", resource: "person", id: "p1", data: { notes: "prefers the left seat" } }];
+      const server = new TestServer([jsonHandler(201, { pending_change: { ...proposed, operations: ops } })]);
+      await server.start();
+      await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+      await writePayload({ summary: "Add notes", operations: ops });
+      vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await changesPropose({ profile: "default", file });
+        expect(server.requests[0]!.body).toMatchObject({ operations: ops });
+      } finally {
+        await server.stop();
+      }
+    });
+
     it("prints machine-readable output with --json", async () => {
       const out: string[] = [];
       vi.spyOn(console, "log").mockImplementation((...a: unknown[]) => void out.push(a.join(" ")));

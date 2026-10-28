@@ -171,3 +171,13 @@ describe("jetlog-csv importer (ZIP archive, CSVLogbookArchive port)", () => {
     expect(csvLogbookImporter.detect(zipped, "export.zip")).toBeGreaterThan(0);
   });
 });
+
+describe("person notes", () => {
+  it("reads the People Notes column, and still parses a People sheet without it", () => {
+    const withNotes = csv(JETLOG_CSV_HEADERS.people, [["", "JD", "Jane", "Doe", "12345", "PIC", "prefers the left seat"]]);
+    expect(parseJetlogCsvFiles([withNotes]).people[0]?.notes).toBe("prefers the left seat");
+    const without = csv(JETLOG_CSV_HEADERS.people.slice(0, 6), [["", "JD", "Jane", "Doe", "12345", "PIC"]]);
+    expect(parseJetlogCsvFiles([without]).people[0]?.notes).toBeUndefined();
+  });
+});
+

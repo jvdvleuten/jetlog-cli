@@ -15,7 +15,7 @@ Jetlog import payload rules:
 - people is a list of { ref_id, role }. Use ref_id "SELF" for the pilot
   filling in the logbook themselves instead of adding them to the top-level
   people list. Other crew need a matching entry in the top-level "people"
-  list: { ref_id, first_name, last_name, default_role?, employee_number? }.
+  list: { ref_id, first_name, last_name, default_role?, employee_number?, notes? }.
 - takeoffs_and_landings is either { takeoffs, landings } or the day/night
   split { takeoffs_day, takeoffs_night, landings_day, landings_night }. Send
   whichever shape your source data provides, with both counts of that shape.

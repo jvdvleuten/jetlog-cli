@@ -26,6 +26,7 @@ import type { Importer, ImporterOptions } from "../importer.js";
 import {
   emptyImportResult,
   newImportedEntry,
+  normalizedPersonNotes,
   truncatedRemarks,
   type ApproachCount,
   type EntryPersonRole,
@@ -195,6 +196,7 @@ interface JSONImportedPerson {
   last_name?: string | null;
   default_role?: string | null;
   employee_number?: string | null;
+  notes?: string | null;
 }
 
 interface DeepLinkData {
@@ -241,6 +243,7 @@ function parse(input: Buffer | string): ImportResult {
       lastName: raw.last_name ?? undefined,
       defaultRole: normalizeRole(raw.default_role ?? undefined),
       employeeNumber: raw.employee_number ?? undefined,
+      notes: normalizedPersonNotes(raw.notes),
       isExisting: { existing: false },
       isImportedFromOtherLogbook: false
     };

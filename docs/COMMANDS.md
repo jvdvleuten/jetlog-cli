@@ -217,7 +217,9 @@ output. `entries list` filters on `--from`, `--to`, `--type`,
 `--registration`, `--airport`, `--flight-number`, `--person-id` and `--role`.
 It returns one page (`--limit`, at most 200) unless you pass `--all`.
 `entries` also shows a `signature` column (none, waived or signed) and a
-`files` column, and `people` shows a `photo` column.
+`files` column, and `people` shows a `photo` column. A person's `notes` are in the
+`--json` output only. Notes can be imported (`notes` on a person, at most 10000
+characters, `null` clears them) and changed with `changes propose`.
 
 ### `jetlog export`
 

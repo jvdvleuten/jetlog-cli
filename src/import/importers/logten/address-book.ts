@@ -14,6 +14,7 @@
  * producing a brand-new `ImportedPerson`, same as every other importer here.
  */
 import type { ImportedPerson, ImportError } from "../../model.js";
+import { normalizedPersonNotes } from "../../model.js";
 import { getValue, parseRow, splitIntoProperLines } from "./tsv.js";
 
 export type LogTenTextFileKind = "flights" | "addressBook" | "unknown";
@@ -47,8 +48,12 @@ function normalizeName(name: string): { first?: string; last?: string } {
   return { first, last: last.length > 0 ? last : undefined };
 }
 
+function hasUsableId(id: string | undefined): boolean {
+  return !!id && id.length > 0 && id.toLowerCase() !== "self";
+}
+
 function extractEmployeeNumber(id: string | undefined, comment: string | undefined): string | undefined {
-  if (id && id.length > 0 && id.toLowerCase() !== "self") return id;
+  if (hasUsableId(id)) return id;
   if (!comment || comment.length === 0) return undefined;
   const digits = comment.replace(/\D/g, "");
   return digits.length > 0 ? digits : undefined;
@@ -91,7 +96,10 @@ export function parseLogTenAddressBook(content: string): LogTenAddressBookResult
     if (!name) return;
 
     const id = value("ID", headers, columns);
-    const employeeNumber = extractEmployeeNumber(id, value("Comment", headers, columns));
+    const comment = value("Comment", headers, columns);
+    const employeeNumber = extractEmployeeNumber(id, comment);
+    // The comment is the employee number's fallback when there is no usable ID; it is a note only otherwise.
+    const commentIsEmployeeNumber = !hasUsableId(id) && employeeNumber !== undefined;
     const { first: firstName, last: lastName } = normalizeName(name);
 
     const person: ImportedPerson = {
@@ -99,6 +107,7 @@ export function parseLogTenAddressBook(content: string): LogTenAddressBookResult
       firstName,
       lastName,
       employeeNumber,
+      notes: commentIsEmployeeNumber ? undefined : normalizedPersonNotes(comment),
       isExisting: { existing: false },
       isImportedFromOtherLogbook: true
     };
@@ -131,6 +140,7 @@ export function mergeLogTenPeople(base: ImportedPerson[], addressBookPeople: Imp
         existing.employeeNumber && existing.employeeNumber.length > 0
           ? existing.employeeNumber
           : addressPerson.employeeNumber ?? existing.employeeNumber,
+      notes: existing.notes && existing.notes.length > 0 ? existing.notes : addressPerson.notes ?? existing.notes,
       defaultRole: existing.defaultRole ?? addressPerson.defaultRole,
       isImportedFromOtherLogbook: existing.isImportedFromOtherLogbook ?? addressPerson.isImportedFromOtherLogbook
     };

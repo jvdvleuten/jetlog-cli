@@ -73,7 +73,9 @@ export const personSchema = z.object({
   first_name: z.string().min(1),
   last_name: z.string().min(1),
   default_role: z.string().min(1).nullish(),
-  employee_number: z.string().min(1).nullish()
+  employee_number: z.string().min(1).nullish(),
+  // Free text, at most 10000 characters. An empty string is stored as no notes, and `null` clears them.
+  notes: z.string().max(10000).nullish()
 });
 
 /**

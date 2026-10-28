@@ -41,7 +41,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { DateOnly, ImportedEntry, ImportedPerson, ImportedAircraft, ImportResult } from "./model.js";
-import { fstdDeviceCategoryFromFreeText } from "./model.js";
+import { fstdDeviceCategoryFromFreeText, normalizedPersonNotes } from "./model.js";
 import {
   cleanRegistration,
   findExistingFstd,
@@ -236,6 +236,10 @@ function resolvePeople(result: ImportResult, mirror: RemoteMirror): { writes: Pe
     };
     if (person.defaultRole) fields.default_role = typeof person.defaultRole === "string" ? person.defaultRole : person.defaultRole.unknown;
     if (person.employeeNumber) fields.employee_number = person.employeeNumber;
+    // Notes fill an empty field only: a note the user already has on that person is never overwritten.
+    const notes = normalizedPersonNotes(person.notes);
+    const storedNotes = typeof matched?.notes === "string" ? matched.notes.trim() : "";
+    if (notes && storedNotes === "") fields.notes = notes;
     if (person.isImportedFromOtherLogbook !== undefined) fields.is_imported_from_other_logbook = person.isImportedFromOtherLogbook;
 
     writes.push({ fields, isNew: !matched, displayName: personDisplayName(person) });

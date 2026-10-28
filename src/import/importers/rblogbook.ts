@@ -27,6 +27,7 @@ import { flagDuplicates } from "../duplicate-detector.js";
 import {
   emptyImportResult,
   newImportedEntry,
+  normalizedPersonNotes,
   truncatedRemarks,
   type EntryPersonRole,
   type ImportError,
@@ -191,6 +192,7 @@ interface RBPersonData {
   lastName?: string;
   function?: string;
   crewId?: string;
+  notes?: string;
 }
 
 function rbDefaultRoleFromFunction(fn: string | undefined): EntryPersonRole | undefined {
@@ -208,6 +210,16 @@ function rbDefaultRoleFromFunction(fn: string | undefined): EntryPersonRole | un
   }
 }
 
+/** The people CSV's `Notes1` to `Notes10` columns, joined by newlines. */
+function joinedNotes(headers: string[], row: string[]): string | undefined {
+  const lines: string[] = [];
+  for (let i = 1; i <= 10; i++) {
+    const line = getValue(headers, row, `Notes${i}`)?.trim();
+    if (line) lines.push(line);
+  }
+  return normalizedPersonNotes(lines.join("\n"));
+}
+
 function parsePeopleCsv(text: string): Map<string, RBPersonData> {
   const { headers, rows } = parseRows(text);
   const lookup = new Map<string, RBPersonData>();
@@ -216,7 +228,7 @@ function parsePeopleCsv(text: string): Map<string, RBPersonData> {
     const lastName = getValue(headers, row, "Last name");
     if (!firstName && !lastName) continue;
     const key = `${firstName ?? ""}${lastName ?? ""}`;
-    lookup.set(key, { firstName, lastName, function: getValue(headers, row, "Function"), crewId: getValue(headers, row, "Crew ID") });
+    lookup.set(key, { firstName, lastName, function: getValue(headers, row, "Function"), crewId: getValue(headers, row, "Crew ID"), notes: joinedNotes(headers, row) });
   }
   return lookup;
 }
@@ -336,6 +348,7 @@ function addPeopleFromCrew(
       firstName: crew.firstName ?? enrichment?.firstName,
       lastName: crew.lastName ?? enrichment?.lastName,
       employeeNumber: crew.employeeNumber ?? enrichment?.crewId,
+      notes: enrichment?.notes,
       defaultRole: rbDefaultRoleFromFunction(enrichment?.function),
       isExisting: { existing: false },
       isImportedFromOtherLogbook: true

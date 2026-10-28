@@ -113,3 +113,13 @@ describe("rbLogbookImporter (single-file Importer interface)", () => {
     expect(result.entries.length).toBeGreaterThan(0);
   });
 });
+
+describe("rblogbook people notes", () => {
+  it("joins Notes1 to Notes10 of the people file with newlines", () => {
+    const people = "First name,Last name,Function,Crew ID,Notes1,Notes2,Notes3,Notes10\nJohn,Smith,First Officer,7788,likes tea,,second line,last line\n";
+    const result = parseRBLogbookFiles({ flights: readFixture("flights.csv"), aircraft: readFixture("aircraft.csv"), people });
+    const john = result.people.find((p) => p.firstName === "John" && p.lastName === "Smith");
+    expect(john?.notes).toBe("likes tea\nsecond line\nlast line");
+  });
+});
+

@@ -232,6 +232,7 @@ the read API (`remote-mirror.ts`), then `match.ts` and `merge.ts` decide per
 row whether it is new, an update or unchanged. `resolve.ts` assembles the
 result into a write plan.
 
+- A person's notes (Jetlog People sheet `Notes` column, Jetlog JSON, LogTen Address Book `Comment` unless it served as the employee number, RB Logbook `Notes1` to `Notes10`) go to a new person as they are. A matched person only gets them when their stored note is empty; an existing note is never overwritten (`resolve.ts`).
 - Entries match on date plus flight number (normalised, with the airline
   prefix rewritten from the airline catalogue when logged in), falling back to
   date plus registration. Among same-day candidates the departure or arrival

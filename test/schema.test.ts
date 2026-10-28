@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getJsonSchema } from "../src/json-schema.js";
 import { checkModeRequirements, payloadSchema, validatePayload } from "../src/schema.js";
 
 describe("payloadSchema", () => {
@@ -125,5 +126,26 @@ describe("checkModeRequirements", () => {
       people: []
     });
     expect(checkModeRequirements(payload, "api")).toHaveLength(0);
+  });
+});
+
+describe("person notes", () => {
+  const person = { ref_id: "p1", first_name: "Jan", last_name: "Jansen" };
+
+  it("accepts notes, an empty string and null (clears)", () => {
+    for (const notes of ["prefers the left seat", "", null]) {
+      const result = validatePayload({ people: [{ ...person, notes }] });
+      expect(result.valid).toBe(true);
+      expect(result.payload?.people?.[0]?.notes).toBe(notes);
+    }
+  });
+
+  it("rejects notes over 10000 characters", () => {
+    expect(validatePayload({ people: [{ ...person, notes: "x".repeat(10000) }] }).valid).toBe(true);
+    expect(validatePayload({ people: [{ ...person, notes: "x".repeat(10001) }] }).valid).toBe(false);
+  });
+
+  it("keeps the JSON Schema derivable with a notes string", () => {
+    expect(JSON.stringify(getJsonSchema())).toContain('"notes":{"anyOf":[{"type":"string","maxLength":10000},{"type":"null"}]}');
   });
 });
