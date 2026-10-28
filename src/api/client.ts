@@ -3,7 +3,7 @@
  * - the RFC 8628 device-authorization grant (`/oauth/device_authorization`,
  *   `/oauth/token`)
  * - the read-only CLI query facade (`/api/cli/v1/*`)
- * - the version-cursor sync mirror (`/api/entries` etc.), used for a full
+ * - the sync-cursor mirror (`/api/entries` etc.), used for a full
  *   export
  *
  * Never sends `x-client-version` (that's the iOS app-version gate and
@@ -947,9 +947,19 @@ export interface EntryAttachmentsPage {
   sync_cursor?: number | null;
 }
 
+/**
+ * Query params that position a sync-mirror page at a cursor. The cursor is sent under both names:
+ * a backend without the `after_cursor` alias (production before the rename deploys) ignores it and
+ * would return the first page forever, while `after_version` is the name it understands.
+ * TODO: drop `after_version` once every supported backend accepts `after_cursor`.
+ */
+export function syncCursorParams(cursor: number): { after_cursor: number; after_version: number } {
+  return { after_cursor: cursor, after_version: cursor };
+}
+
 /** One page of the sync mirror of entry file rows (read scope). */
-export function listEntryAttachmentsPage(client: ApiClient, afterVersion: number, limit = 1000): Promise<EntryAttachmentsPage> {
-  return client.get<EntryAttachmentsPage>("/api/entry_attachments", { after_version: afterVersion, limit });
+export function listEntryAttachmentsPage(client: ApiClient, afterCursor: number, limit = 1000): Promise<EntryAttachmentsPage> {
+  return client.get<EntryAttachmentsPage>("/api/entry_attachments", { ...syncCursorParams(afterCursor), limit });
 }
 
 // ---------------------------------------------------------------------

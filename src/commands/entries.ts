@@ -83,8 +83,12 @@ export async function fetchAllEntries(
     });
     all.push(...page.entries);
     if (!page.pagination.has_more || !page.pagination.next_cursor) break;
-    afterDate = String(page.pagination.next_cursor.date);
-    afterId = String(page.pagination.next_cursor.id);
+    const nextDate = String(page.pagination.next_cursor.date);
+    const nextId = String(page.pagination.next_cursor.id);
+    // A cursor that does not move would refetch the same page forever.
+    if (nextDate === afterDate && nextId === afterId) break;
+    afterDate = nextDate;
+    afterId = nextId;
   }
 
   return all;

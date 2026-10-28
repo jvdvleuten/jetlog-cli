@@ -1,6 +1,6 @@
 /**
  * `jetlog export`: pages through `/api/cli/v1/entries` (the filterable
- * read facade, not the version-cursor sync mirror: it has `include_deleted`
+ * read facade, not the sync-cursor mirror: it has `include_deleted`
  * built in and a nicer `derived` shape) and writes every entry to disk.
  *
  * Resumability: before each page request, the keyset cursor (`after_date`/
@@ -125,8 +125,12 @@ export async function runExport(opts: ExportOptions): Promise<void> {
 
       if (!result.pagination.has_more || !result.pagination.next_cursor) break;
 
-      afterDate = String(result.pagination.next_cursor.date);
-      afterId = String(result.pagination.next_cursor.id);
+      const nextDate = String(result.pagination.next_cursor.date);
+      const nextId = String(result.pagination.next_cursor.id);
+      // A cursor that does not move would refetch the same page forever.
+      if (nextDate === afterDate && nextId === afterId) break;
+      afterDate = nextDate;
+      afterId = nextId;
 
       if (output) await saveResumeState(output, { afterDate, afterId });
     }

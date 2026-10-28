@@ -207,6 +207,30 @@ describe("attachments commands", () => {
     );
   });
 
+  it("remove finds a row on a later page of a backend that only understands after_version", async () => {
+    const rows = Array.from({ length: 1000 }, (_, i) => ({ id: `r${i + 1}`, version: i + 1, entry_id: "e1", attachment_id: `a${i + 1}`, file_name: "f.png", is_deleted: false }));
+    const late = { id: "late", version: 1001, entry_id: "e1", attachment_id: "alate", file_name: "late.png", is_deleted: false };
+    const all = [...rows, late];
+    const paged: Handler = (req, res) => {
+      const after = Number(new URL(req.path, "http://x").searchParams.get("after_version"));
+      jsonHandler(200, { entry_attachments: all.filter((r) => r.version > after).slice(0, 1000), sync_cursor: 1001 })(req, res);
+    };
+    await withServer([paged, paged, jsonHandler(201, { id: "batch-3" }), jsonHandler(200, { entry_attachments: [] })], async (server) => {
+      await attachmentsRemove({ profile: "default", id: "late", yes: true });
+      expect(server.requests[0]!.path).toBe("/api/entry_attachments?after_cursor=0&after_version=0&limit=1000");
+      expect(server.requests[1]!.path).toBe("/api/entry_attachments?after_cursor=1000&after_version=1000&limit=1000");
+    });
+  });
+
+  it("remove gives up when a backend ignores the cursor instead of repeating the first page forever", async () => {
+    const rows = Array.from({ length: 1000 }, (_, i) => ({ id: `r${i + 1}`, version: i + 1, entry_id: "e1", attachment_id: `a${i + 1}`, file_name: "f.png", is_deleted: false }));
+    const stuck = jsonHandler(200, { entry_attachments: rows, sync_cursor: 1000 });
+    await withServer([stuck, stuck], async (server) => {
+      await expect(attachmentsRemove({ profile: "default", id: "nope", yes: true })).rejects.toThrow(/not found/);
+      expect(server.requests).toHaveLength(2);
+    });
+  });
+
   it("remove reports an unknown row", async () => {
     await withServer([jsonHandler(200, { entry_attachments: [], sync_cursor: 0 })], async () => {
       await expect(attachmentsRemove({ profile: "default", id: "nope", yes: true })).rejects.toThrow(/not found/);

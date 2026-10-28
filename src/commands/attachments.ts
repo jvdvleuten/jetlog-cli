@@ -92,14 +92,17 @@ export async function attachmentsGet(opts: Common & { attachmentId: string; outp
 /** Finds an entry file row by its row id in the app's sync mirror, paging until it turns up. */
 async function findEntryAttachmentRow(client: ApiClient, id: string): Promise<Record<string, unknown> | undefined> {
   const limit = 1000;
-  let after = 0;
+  let cursor = 0;
   for (;;) {
-    const page = await listEntryAttachmentsPage(client, after, limit);
+    const page = await listEntryAttachmentsPage(client, cursor, limit);
     const rows = page.entry_attachments ?? [];
     const hit = rows.find((r) => r.id === id);
     if (hit) return hit;
     if (rows.length < limit) return undefined;
-    after = Math.max(...rows.map((r) => Number(r.version ?? 0)), after);
+    const next = Math.max(...rows.map((r) => Number(r.version ?? 0)), cursor);
+    // A page that does not advance the cursor (a backend that ignores it) would repeat forever.
+    if (!Number.isFinite(next) || next <= cursor) return undefined;
+    cursor = next;
   }
 }
 

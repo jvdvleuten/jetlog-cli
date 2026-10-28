@@ -8,7 +8,7 @@
  * not a persistent cache with incremental cursors. A plain re-fetch is slower
  * but no less correct.
  */
-import type { ApiClient, EntriesPage, PeopleResponse, AircraftResponse, SyncFstdPage, MeResponse } from "../api/client.js";
+import { syncCursorParams, type ApiClient, type EntriesPage, PeopleResponse, AircraftResponse, SyncFstdPage, MeResponse } from "../api/client.js";
 
 export interface RemoteEntry {
   [key: string]: unknown;
@@ -69,25 +69,29 @@ async function fetchAllEntries(client: ApiClient): Promise<RemoteEntry[]> {
     });
     all.push(...(page.entries as RemoteEntry[]));
     if (!page.pagination.has_more || !page.pagination.next_cursor) break;
-    afterDate = String(page.pagination.next_cursor.date);
-    afterId = String(page.pagination.next_cursor.id);
+    const nextDate = String(page.pagination.next_cursor.date);
+    const nextId = String(page.pagination.next_cursor.id);
+    // A cursor that does not move would refetch the same page forever.
+    if (nextDate === afterDate && nextId === afterId) break;
+    afterDate = nextDate;
+    afterId = nextId;
   }
   return all;
 }
 
-/** Pages through `/api/fstd`'s version cursor, the only FSTD list endpoint
+/** Pages through `/api/fstd`'s sync cursor, the only FSTD list endpoint
  * (there is no `/api/cli/v1/fstd` facade). */
 async function fetchAllFstd(client: ApiClient): Promise<RemoteFstd[]> {
   const all: RemoteFstd[] = [];
-  let afterVersion = 0;
+  let afterCursor = 0;
   for (;;) {
-    const page = await client.get<SyncFstdPage>("/api/fstd", { after_version: afterVersion, limit: 1000 });
+    const page = await client.get<SyncFstdPage>("/api/fstd", { ...syncCursorParams(afterCursor), limit: 1000 });
     const rows = (page.fstd ?? []) as RemoteFstd[];
     if (rows.length === 0) break;
     all.push(...rows);
-    const maxVersion = Math.max(...rows.map((r) => Number(r.version ?? 0)));
-    if (!Number.isFinite(maxVersion) || maxVersion <= afterVersion) break;
-    afterVersion = maxVersion;
+    const nextCursor = Math.max(...rows.map((r) => Number(r.version ?? 0)));
+    if (!Number.isFinite(nextCursor) || nextCursor <= afterCursor) break;
+    afterCursor = nextCursor;
     if (rows.length < 1000) break;
   }
   return all;

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { ApiClient } from "../../src/api/client.js";
 import {
   buildAirportIndex,
@@ -102,10 +102,29 @@ describe("logged-in sources", () => {
     return new ApiClient({ baseUrl: server.baseUrl, token: "jlp_test" });
   }
 
-  it("pages the catalog by version and caches it per profile", async () => {
+  it("pages the catalog by sync cursor and caches it per profile", async () => {
     const all = Array.from({ length: 1500 }, (_, i) => systemPlace(i + 1));
     const client = await startRouted((path, q) => {
       expect(path).toBe("/api/system_places");
+      const after = Number(q.get("after_cursor"));
+      return { system_places: all.filter((r) => (r.version as number) > after).slice(0, Number(q.get("limit"))), sync_cursor: 0 };
+    });
+
+    const rows = await fetchSystemCatalog(client, "default", client.baseUrl);
+    expect(rows).toHaveLength(1500);
+    expect(server!.requests.map((r) => r.path)).toEqual([
+      "/api/system_places?after_cursor=0&after_version=0&limit=1000",
+      "/api/system_places?after_cursor=1000&after_version=1000&limit=1000"
+    ]);
+
+    const cache = JSON.parse(await readFile(catalogCachePath("default"), "utf8"));
+    expect(cache.syncCursor).toBe(1500);
+    expect(Object.keys(cache.rows)).toHaveLength(1500);
+  });
+
+  it("pages a backend that only understands after_version (no after_cursor alias) to the end", async () => {
+    const all = Array.from({ length: 1500 }, (_, i) => systemPlace(i + 1));
+    const client = await startRouted((_path, q) => {
       const after = Number(q.get("after_version"));
       return { system_places: all.filter((r) => (r.version as number) > after).slice(0, Number(q.get("limit"))), sync_cursor: 0 };
     });
@@ -113,20 +132,16 @@ describe("logged-in sources", () => {
     const rows = await fetchSystemCatalog(client, "default", client.baseUrl);
     expect(rows).toHaveLength(1500);
     expect(server!.requests.map((r) => r.path)).toEqual([
-      "/api/system_places?after_version=0&limit=1000",
-      "/api/system_places?after_version=1000&limit=1000"
+      "/api/system_places?after_cursor=0&after_version=0&limit=1000",
+      "/api/system_places?after_cursor=1000&after_version=1000&limit=1000"
     ]);
-
-    const cache = JSON.parse(await readFile(catalogCachePath("default"), "utf8"));
-    expect(cache.maxVersion).toBe(1500);
-    expect(Object.keys(cache.rows)).toHaveLength(1500);
   });
 
   it("refreshes a cached catalog by delta, applying tombstones by id", async () => {
     let phase = 1;
     const client = await startRouted((path, q) => {
       if (phase === 1) return { system_places: [systemPlace(1), systemPlace(2)] };
-      expect(q.get("after_version")).toBe("2");
+      expect(q.get("after_cursor")).toBe("2");
       return { system_places: [systemPlace(3, { id: "sp-1", is_deleted: true }), systemPlace(4, { icao: "EHAM", iata: "AMS" })] };
     });
 
@@ -136,8 +151,8 @@ describe("logged-in sources", () => {
     expect(rows).toHaveLength(3);
     expect(rows.find((r) => r.id === "sp-1")?.isDeleted).toBe(true);
     expect(server!.requests.map((r) => r.path)).toEqual([
-      "/api/system_places?after_version=0&limit=1000",
-      "/api/system_places?after_version=2&limit=1000"
+      "/api/system_places?after_cursor=0&after_version=0&limit=1000",
+      "/api/system_places?after_cursor=2&after_version=2&limit=1000"
     ]);
 
     const index = buildAirportIndex(rows);
@@ -145,12 +160,26 @@ describe("logged-in sources", () => {
     expect(resolve(index, "ams")?.identity).toBe("EHAM");
   });
 
+  it("discards a cache written with the old maxVersion key and fetches from cursor 0", async () => {
+    const client = await startRouted(() => ({ system_places: [systemPlace(1)] }));
+    const file = catalogCachePath("default");
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify({ baseUrl: client.baseUrl, maxVersion: 500, rows: { stale: { id: "stale" } } }));
+
+    const rows = await fetchSystemCatalog(client, "default", client.baseUrl);
+    expect(rows.map((r) => r.id)).toEqual(["sp-1"]);
+    expect(server!.requests.map((r) => r.path)).toEqual(["/api/system_places?after_cursor=0&after_version=0&limit=1000"]);
+    const cache = JSON.parse(await readFile(file, "utf8"));
+    expect(cache.syncCursor).toBe(1);
+    expect(cache.maxVersion).toBeUndefined();
+  });
+
   it("ignores a cache written for another base URL or profile", async () => {
     const client = await startRouted(() => ({ system_places: [systemPlace(1)] }));
     await fetchSystemCatalog(client, "default", "https://elsewhere.example");
     await fetchSystemCatalog(client, "default", client.baseUrl);
     await fetchSystemCatalog(client, "other", client.baseUrl);
-    expect(server!.requests.every((r) => r.path.includes("after_version=0"))).toBe(true);
+    expect(server!.requests.every((r) => r.path.includes("after_cursor=0"))).toBe(true);
     expect(server!.requests).toHaveLength(3);
   });
 
@@ -175,7 +204,7 @@ describe("logged-in sources", () => {
     expect(resolve(index, "MYF")).toMatchObject({ identity: "AMS", lat: 52.3086, lon: 4.7639, hasPosition: true });
     expect(resolve(index, "lhr")?.identity).toBe("EGLL");
     expect(resolve(index, "GONE")).toBeNull();
-    expect(server!.requests.map((r) => r.path)).toEqual(["/api/system_places?after_version=0&limit=1000", "/api/places?after_version=0&limit=1000"]);
+    expect(server!.requests.map((r) => r.path)).toEqual(["/api/system_places?after_cursor=0&after_version=0&limit=1000", "/api/places?after_cursor=0&after_version=0&limit=1000"]);
   });
 
   it("stops paging when a full page does not advance the cursor", async () => {

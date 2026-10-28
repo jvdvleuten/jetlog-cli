@@ -2,7 +2,7 @@
  * Where the resolver's rows come from. The package ships no airport data.
  *
  * - Logged in: the server catalog (`GET /api/system_places`, paged by
- *   `after_version`, cached per profile on disk and refreshed by delta) plus the
+ *   `after_cursor`, cached per profile on disk and refreshed by delta) plus the
  *   user's own places (`GET /api/places`). Both routes are readable with a PAT and,
  *   without a device id, do not touch sync cursors.
  * - Not logged in, or `--offline`: no rows. Codes pass through as written and
@@ -10,7 +10,7 @@
  */
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { ApiClient } from "../api/client.js";
+import { syncCursorParams, type ApiClient } from "../api/client.js";
 import { configDir } from "../auth/credentials.js";
 import type { CatalogRow, UserPlace } from "./resolver.js";
 
@@ -84,29 +84,30 @@ function toUserPlace(p: ApiPlace): UserPlace {
   };
 }
 
-/** Pages one version-ordered sync endpoint until it runs dry. `onPage` receives each page's rows. */
-async function pageByVersion<T extends { version?: number | null }>(
+/** Pages one sync endpoint by its cursor until it runs dry. `onPage` receives each page's rows. */
+async function pageByCursor<T extends { version?: number | null }>(
   client: ApiClient,
   endpoint: string,
   key: string,
-  startAfter: number,
+  startCursor: number,
   onPage: (rows: T[]) => void
 ): Promise<void> {
-  let after = startAfter;
+  let cursor = startCursor;
   for (;;) {
-    const page = await client.get<Record<string, unknown>>(endpoint, { after_version: after, limit: PAGE_LIMIT });
+    const page = await client.get<Record<string, unknown>>(endpoint, { ...syncCursorParams(cursor), limit: PAGE_LIMIT });
     const rows = (page[key] as T[] | null | undefined) ?? [];
     onPage(rows);
-    const maxVersion = rows.reduce((m, r) => Math.max(m, r.version ?? 0), after);
+    // A row's `version` is the sync cursor value at which it last changed.
+    const nextCursor = rows.reduce((m, r) => Math.max(m, r.version ?? 0), cursor);
     // A short page is the last one; a page that does not advance the cursor would loop forever.
-    if (rows.length < PAGE_LIMIT || maxVersion <= after) return;
-    after = maxVersion;
+    if (rows.length < PAGE_LIMIT || nextCursor <= cursor) return;
+    cursor = nextCursor;
   }
 }
 
 interface CatalogCache {
   baseUrl: string;
-  maxVersion: number;
+  syncCursor: number;
   rows: Record<string, CatalogRow>;
 }
 
@@ -117,7 +118,7 @@ export function catalogCachePath(profile: string): string {
 async function readCache(file: string, baseUrl: string): Promise<CatalogCache | undefined> {
   try {
     const cache = JSON.parse(await readFile(file, "utf8")) as CatalogCache;
-    if (cache.baseUrl !== baseUrl || typeof cache.maxVersion !== "number" || typeof cache.rows !== "object" || cache.rows === null) {
+    if (cache.baseUrl !== baseUrl || typeof cache.syncCursor !== "number" || typeof cache.rows !== "object" || cache.rows === null) {
       return undefined;
     }
     return cache;
@@ -142,21 +143,21 @@ export async function fetchSystemCatalog(client: ApiClient, profile: string, bas
   const file = catalogCachePath(profile);
   const cached = await readCache(file, baseUrl);
   const rows = new Map<string, CatalogRow>(cached ? Object.entries(cached.rows) : []);
-  const startAfter = cached?.maxVersion ?? 0;
-  let maxVersion = startAfter;
+  const startCursor = cached?.syncCursor ?? 0;
+  let syncCursor = startCursor;
   let changed = false;
 
-  await pageByVersion<ApiSystemPlace>(client, "/api/system_places", "system_places", startAfter, (page) => {
+  await pageByCursor<ApiSystemPlace>(client, "/api/system_places", "system_places", startCursor, (page) => {
     for (const raw of page) {
       const row = toCatalogRow(raw);
       rows.set(row.id, row);
-      maxVersion = Math.max(maxVersion, row.version ?? 0);
+      syncCursor = Math.max(syncCursor, row.version ?? 0);
       changed = true;
     }
   });
 
   if (changed && rows.size > 0) {
-    await writeCache(file, { baseUrl, maxVersion, rows: Object.fromEntries(rows) });
+    await writeCache(file, { baseUrl, syncCursor, rows: Object.fromEntries(rows) });
   }
   return [...rows.values()];
 }
@@ -164,7 +165,7 @@ export async function fetchSystemCatalog(client: ApiClient, profile: string, bas
 /** The user's own places (small, always fetched fresh), tombstones included. */
 export async function fetchUserPlaces(client: ApiClient): Promise<UserPlace[]> {
   const out: UserPlace[] = [];
-  await pageByVersion<ApiPlace>(client, "/api/places", "places", 0, (page) => {
+  await pageByCursor<ApiPlace>(client, "/api/places", "places", 0, (page) => {
     for (const raw of page) out.push(toUserPlace(raw));
   });
   return out;
