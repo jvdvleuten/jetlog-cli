@@ -14,6 +14,7 @@
 import { VERSION } from "../version.js";
 import { observeLatestVersion, suppressUpdateNotice } from "../update-notice.js";
 import { sanitizeForTerminal } from "../commands/output.js";
+import { assertName, prepareWriteRows, problemsError } from "../text-rules.js";
 
 export const DEFAULT_BASE_URL = "https://jetlog.app";
 
@@ -163,6 +164,46 @@ function waitText(seconds: number): string {
   if (seconds <= 90) return `${seconds} second${seconds === 1 ? "" : "s"}`;
   const minutes = Math.ceil(seconds / 60);
   return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+}
+
+/** Most field errors a message lists before it counts the rest. */
+const MAX_LISTED_FIELD_ERRORS = 20;
+
+/**
+ * The server's per-field errors (`{"error":{"errors":[{index, field, message}]}}`) as indented lines, ready to
+ * append to a message. Empty when the body carries none. `index` is the position in the request that failed.
+ */
+export function describeFieldErrors(body: Record<string, unknown> | undefined): string {
+  const errors = firstArray(body, ["errors"]).filter(
+    (e): e is Record<string, unknown> => !!e && typeof e === "object" && typeof (e as Record<string, unknown>).message === "string"
+  );
+  if (errors.length === 0) return "";
+  const lines = errors.slice(0, MAX_LISTED_FIELD_ERRORS).map((e) => {
+    const where = [
+      typeof e.index === "number" ? `index ${e.index}` : undefined,
+      typeof e.field === "string" && e.field !== "" ? sanitizeForTerminal(e.field) : undefined
+    ].filter((p): p is string => p !== undefined);
+    return `\n  ${where.length > 0 ? `${where.join(", ")}: ` : ""}${sanitizeForTerminal(e.message as string)}`;
+  });
+  if (errors.length > lines.length) lines.push(`\n  and ${errors.length - lines.length} more`);
+  return lines.join("");
+}
+
+/**
+ * Reads the error out of a response body in either shape the server uses (`{"error":"code"}` or
+ * `{"error":{"message","code","errors"}}`) as one printable text, field errors included.
+ */
+export function describeErrorBody(body: Record<string, unknown> | undefined): string {
+  const errorField = body?.error;
+  if (typeof errorField === "string") return sanitizeForTerminal(errorField);
+  if (errorField && typeof errorField === "object") {
+    const inner = errorField as Record<string, unknown>;
+    const message = typeof inner.message === "string" ? sanitizeForTerminal(inner.message) : undefined;
+    const code = typeof inner.code === "string" ? sanitizeForTerminal(inner.code) : undefined;
+    const head = message ?? code ?? "unknown error";
+    return `${head}${code && message && !message.includes(code) ? ` (${code})` : ""}${describeFieldErrors(body)}`;
+  }
+  return "unknown error";
 }
 
 function messageForStatus(
@@ -357,7 +398,8 @@ export class ApiClient {
         ? ((errorField as Record<string, unknown>).message as string)
         : undefined;
     const description = typeof body.error_description === "string" ? body.error_description : undefined;
-    throw new ApiError(messageForStatus(status, code, bodyMessage ?? code, retryAfter, body), status, code, retryAfter, {
+    const fieldErrors = status === 400 || status === 422 ? describeFieldErrors(body) : "";
+    throw new ApiError(messageForStatus(status, code, bodyMessage ?? code, retryAfter, body) + fieldErrors, status, code, retryAfter, {
       description,
       body
     });
@@ -585,6 +627,7 @@ export function createImportBatch(
   client: ApiClient,
   attrs: { kind?: "import" | "edit" | "mcp"; source_format?: string; label?: string; client?: string }
 ): Promise<ImportBatch> {
+  if (attrs.label !== undefined) assertName(attrs.label, "the batch label");
   return client.post<ImportBatch>("/api/import_batches", attrs);
 }
 
@@ -637,8 +680,11 @@ export async function putResourceChunked(
   rows: Record<string, unknown>[],
   batchId: string
 ): Promise<Record<string, unknown>[]> {
+  // Every row is checked before the first request, so a bad row sends nothing. Code fields lose hidden characters.
+  const prepared = prepareWriteRows(resource, rows);
+  if (prepared.problems.length > 0) throw problemsError("the rows cannot be stored as they are:", prepared.problems);
   const results: Record<string, unknown>[] = [];
-  for (const batch of chunk(rows, MAX_WRITE_ROWS)) {
+  for (const batch of chunk(prepared.rows, MAX_WRITE_ROWS)) {
     if (batch.length === 0) continue;
     const page = await client.put<WriteResourcePage>(
       `/api/${resource}`,

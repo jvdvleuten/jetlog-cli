@@ -85,6 +85,40 @@ describe("putResourceChunked", () => {
     }
   });
 
+  it("sends nothing when a row holds NUL, and strips hidden characters from code fields", async () => {
+    const server = new TestServer([jsonHandler(200, { entries: [{ id: "e1" }] })]);
+    await server.start();
+    try {
+      const client = new ApiClient({ baseUrl: server.baseUrl, token: "jlp_abc" });
+      await expect(
+        putResourceChunked(client, "entries", [{ id: "e1" }, { id: "e2", remarks: "a\u0000" }], "b1")
+      ).rejects.toThrow(/entries row 2, remarks: must not contain the NUL character \(U\+0000\)/);
+      expect(server.requests).toHaveLength(0);
+
+      await putResourceChunked(client, "entries", [{ id: "e1", flight_number: "\uFEFFKL1" }], "b1");
+      expect(server.requests[0]!.body).toEqual({ entries: [{ id: "e1", flight_number: "KL1" }] });
+    } finally {
+      await server.stop();
+    }
+  });
+
+  it("shows the server's per-field errors of a 422", async () => {
+    const server = new TestServer([
+      jsonHandler(422, {
+        error: { message: "Text is not valid", code: "invalid_text", errors: [{ index: 3, field: "people[0].first_name", message: "must be valid UTF-8 text" }] }
+      })
+    ]);
+    await server.start();
+    try {
+      const client = new ApiClient({ baseUrl: server.baseUrl, token: "jlp_abc" });
+      await expect(putResourceChunked(client, "people", [{ id: "p1" }], "b1")).rejects.toThrow(
+        "Text is not valid\n  index 3, people[0].first_name: must be valid UTF-8 text"
+      );
+    } finally {
+      await server.stop();
+    }
+  });
+
   it("retries a 429 with retry-after before succeeding", async () => {
     const server = new TestServer([
       jsonHandler(429, { error: { message: "rate limited", code: "rate_limited" } }, { "retry-after": "0" }),

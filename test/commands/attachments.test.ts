@@ -109,6 +109,15 @@ describe("attachments commands", () => {
     });
   });
 
+  it("add refuses a --name with NUL or over 255 characters", async () => {
+    await expect(attachmentsAdd({ profile: "default", entryId: "e1", files: ["a.png"], name: "a\u0000.png", yes: true })).rejects.toThrow(
+      "--name must not contain the NUL character (U+0000)."
+    );
+    await expect(attachmentsAdd({ profile: "default", entryId: "e1", files: ["a.png"], name: "x".repeat(256), yes: true })).rejects.toThrow(
+      "--name must be at most 255 characters."
+    );
+  });
+
   it("add refuses --name with more than one file", async () => {
     await expect(attachmentsAdd({ profile: "default", entryId: "e1", files: ["a.png", "b.png"], name: "x.png", yes: true })).rejects.toThrow(/--name/);
   });

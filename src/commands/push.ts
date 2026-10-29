@@ -4,6 +4,7 @@
  * does not implement: it is for apps and services, not for the pilot.
  */
 import { validatePayload, type Payload } from "../schema.js";
+import { describeErrorBody } from "../api/client.js";
 
 /** The guide that explains the move from the key pair to tokens. */
 export const PARTNER_MIGRATION_URL = "https://github.com/jvdvleuten/JetlogAPI/blob/main/MIGRATION.md";
@@ -68,10 +69,10 @@ export async function runPush(content: string, opts: { baseUrl: string; dryRun?:
     const body = (await response.json().catch(() => ({}))) as {
       skipped?: unknown[];
       warnings?: unknown[];
-      error?: string;
+      error?: unknown;
     };
     if (!response.ok) {
-      console.error(`error: HTTP ${response.status}: ${body.error ?? "unknown error"}`);
+      console.error(`error: HTTP ${response.status}: ${describeErrorBody(body)}`);
       process.exitCode = 1;
       continue;
     }

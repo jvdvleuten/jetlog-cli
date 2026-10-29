@@ -11,6 +11,7 @@ import { lstat, open, readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { configDir } from "../auth/credentials.js";
+import { nameProblem } from "../text-rules.js";
 import { confirmAttachment, createAttachment, putPresigned, type ApiClient, type AttachmentKind } from "../api/client.js";
 
 const MIB = 1024 * 1024;
@@ -157,7 +158,10 @@ export async function inspectFile(path: string, kind: AttachmentKind): Promise<L
   if (maxPixels && size && (size.width > maxPixels || size.height > maxPixels)) {
     throw new UploadError(`${path} is ${size.width} by ${size.height} pixels, and the limit is ${maxPixels} pixels on each side. Resize the image and try again.`);
   }
-  return { path: real, fileName: basename(path), byteSize: stats.size, contentType };
+  const fileName = basename(path);
+  const nameIssue = nameProblem(fileName);
+  if (nameIssue) throw new UploadError(`the file name ${nameIssue}.`);
+  return { path: real, fileName, byteSize: stats.size, contentType };
 }
 
 export interface UploadResult {

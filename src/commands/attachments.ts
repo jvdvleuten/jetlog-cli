@@ -5,6 +5,7 @@
  * `PUT /api/entry_attachments` writes the rows, so `jetlog batches` and the app can see what this run did.
  * Status and prompts go to stderr, data to stdout.
  */
+import { assertName } from "../text-rules.js";
 import { randomUUID } from "node:crypto";
 import {
   createImportBatch,
@@ -41,6 +42,7 @@ export async function attachmentsAdd(
 ): Promise<void> {
   if (opts.files.length === 0) throw new Error("pass at least one file.");
   if (opts.name !== undefined && opts.files.length > 1) throw new Error("--name only works with a single file.");
+  if (opts.name !== undefined) assertName(opts.name, "--name");
 
   // Local checks first, so a bad file fails before anything is sent.
   const local: LocalFile[] = [];

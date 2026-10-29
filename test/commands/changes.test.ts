@@ -262,6 +262,28 @@ describe("changes commands", () => {
       }
     });
 
+    it("refuses text the server would refuse, per operation and field, before any request", async () => {
+      const server = new TestServer([]);
+      await server.start();
+      await saveProfile("default", { token: "jlp_abc", baseUrl: server.baseUrl });
+      await writePayload({
+        summary: "x".repeat(501),
+        operations: [
+          { op: "update", resource: "entry", id: "e-1", data: { registration: "PH\u200BEZA" } },
+          { op: "update", resource: "entry", id: "e-2", data: { remarks: "a\u0000b" } }
+        ]
+      });
+      try {
+        const error = await changesPropose({ profile: "default", file }).catch((e: Error) => e);
+        expect((error as Error).message).toContain("summary: must be at most 500 characters");
+        expect((error as Error).message).toContain("operation 0, registration: must not contain control, bidi or zero-width characters");
+        expect((error as Error).message).toContain("operation 1, remarks: must not contain the NUL character (U+0000)");
+        expect(server.requests).toHaveLength(0);
+      } finally {
+        await server.stop();
+      }
+    });
+
     it("exposes a JSON Schema for the payload", () => {
       const schema = getProposeChangesJsonSchema() as { properties: Record<string, unknown> };
       expect(Object.keys(schema.properties)).toEqual(["summary", "operations"]);

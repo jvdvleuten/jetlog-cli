@@ -123,6 +123,28 @@ describe("runImport", () => {
     }
   });
 
+  it("refuses a row with NUL, naming the row and field, and writes nothing", async () => {
+    const bad = { ...FIXTURE, entries: [{ ...FIXTURE.entries[0], remarks: "bad\u0000text" }] };
+    await writeFile(file, JSON.stringify(bad), "utf-8");
+    const server = new TestServer(mirrorHandlers());
+    await server.start();
+    await saveProfile("default", { token: "jlp_write", baseUrl: server.baseUrl });
+    try {
+      await expect(runImport({ files: [file], from: "deeplink-json", yes: true, profile: "default" })).rejects.toThrow(
+        /remarks: must not contain the NUL character \(U\+0000\)\nNothing was sent/
+      );
+      expect(server.requests.every((r) => r.method === "GET")).toBe(true);
+    } finally {
+      await server.stop();
+    }
+  });
+
+  it("refuses a batch label with NUL before any request", async () => {
+    await expect(runImport({ files: [file], from: "deeplink-json", yes: true, profile: "default", label: "a\u0000" })).rejects.toThrow(
+      "the batch label must not contain the NUL character (U+0000)."
+    );
+  });
+
   it("reuses the active batch from a previous run instead of opening a new one", async () => {
     const server = new TestServer([
       ...mirrorHandlers(),

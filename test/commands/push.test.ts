@@ -82,6 +82,31 @@ describe("push command (deprecated)", () => {
     }
   });
 
+  it("prints the server's per-field errors of a nested error body", async () => {
+    const server = new TestServer([
+      jsonHandler(422, {
+        error: {
+          message: "Text must not contain the NUL character (U+0000) and must be valid UTF-8",
+          code: "invalid_text",
+          errors: [{ index: 1, field: "entries[1].remarks", message: "must not contain the NUL character (U+0000)" }]
+        }
+      })
+    ]);
+    await server.start();
+    try {
+      await runPush(JSON.stringify({ entries: [flight(1)], people: [] }), { baseUrl: server.baseUrl });
+      const lines = errorSpy.mock.calls.map((c) => String(c[0]));
+      expect(lines[1]).toBe(
+        "error: HTTP 422: Text must not contain the NUL character (U+0000) and must be valid UTF-8 (invalid_text)\n" +
+          "  index 1, entries[1].remarks: must not contain the NUL character (U+0000)"
+      );
+      expect(lines.join("\n")).not.toContain("[object Object]");
+      expect(process.exitCode).toBe(1);
+    } finally {
+      await server.stop();
+    }
+  });
+
   it("warns before it complains about missing keys", async () => {
     delete process.env.JETLOG_PARTNER_KEY;
     await runPush(JSON.stringify({ entries: [flight(1)], people: [] }), { baseUrl: "http://unused.invalid" });

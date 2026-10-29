@@ -79,6 +79,8 @@ export interface EntryWrite {
    * still counted in the preview. */
   unchanged: boolean;
   date: string;
+  /** 1-based line of the source file, when the importer knows it. */
+  sourceRow?: number;
 }
 
 export interface WritePlan {
@@ -378,11 +380,12 @@ export function buildWritePlan(result: ImportResult, mirror: RemoteMirror, optio
 
   const fstd = resolveFstd(result, mergedEntries, mirror);
 
-  const entries: EntryWrite[] = mergedEntries.map(({ merged, unchanged }) => ({
+  const entries: EntryWrite[] = mergedEntries.map(({ imported, merged, unchanged }) => ({
     fields: { id: merged.id, ...merged.fields },
     isNew: merged.isNew,
     unchanged,
-    date: String(merged.fields.date)
+    date: String(merged.fields.date),
+    ...(imported.sourceRow !== undefined ? { sourceRow: imported.sourceRow } : {})
   }));
 
   return { people, aircraft, fstd, entries, skippedDuplicateInFile, skippedAlreadyDeletedUnmatched, warnings };

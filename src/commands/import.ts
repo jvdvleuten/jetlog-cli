@@ -19,6 +19,7 @@ import { fetchRemoteMirror } from "../import/remote-mirror.js";
 import { fetchAirlineCatalog } from "../import/airlines.js";
 import { buildWritePlan, type WritePlan } from "../import/resolve.js";
 import { useLoggedInAirports } from "../airports/index.js";
+import { prepareWriteRows, assertName, problemsError } from "../text-rules.js";
 import { importNotices, terminalNoticeLines } from "../import/warnings.js";
 
 export interface ImportOptions {
@@ -171,7 +172,28 @@ async function reuseOrCreateBatch(
   return { batch, reused: false };
 }
 
+/**
+ * Refuses a plan with text the server would reject (NUL, invalid text, values over the length limits), naming
+ * the file row and the field, before anything is sent. Rows that are not written (unchanged) are not checked.
+ */
+function checkPlanText(plan: WritePlan): void {
+  const problems: string[] = [];
+  const check = (resource: string, rows: Record<string, unknown>[], label: (i: number) => string): void => {
+    problems.push(...prepareWriteRows(resource, rows, label).problems);
+  };
+  check("people", plan.people.map((p) => p.fields), (i) => `person ${plan.people[i]!.displayName ? `"${plan.people[i]!.displayName}"` : i + 1}`);
+  check("aircraft", plan.aircraft.map((a) => a.fields), (i) => `aircraft ${String(plan.aircraft[i]!.fields.id ?? i + 1)}`);
+  check("fstd", plan.fstd.map((f) => f.fields), (i) => `fstd ${String(plan.fstd[i]!.fields.id ?? i + 1)}`);
+  const written = plan.entries.filter((e) => !e.unchanged);
+  check("entries", written.map((e) => e.fields), (i) => {
+    const entry = written[i]!;
+    return entry.sourceRow !== undefined ? `file row ${entry.sourceRow} (entry of ${entry.date})` : `entry ${i + 1} of ${entry.date}`;
+  });
+  if (problems.length > 0) throw problemsError("the file has text Jetlog cannot store:", problems);
+}
+
 export async function runImport(opts: ImportOptions): Promise<void> {
+  if (opts.label !== undefined) assertName(opts.label, "the batch label");
   const client = await requireWriteClient(opts.profile, opts.baseUrl);
   // Importers and the route-divergence check canonicalize codes through the ONE airport resolver;
   // install the server catalog plus the user's places first so IATA and custom-place codes
@@ -182,6 +204,7 @@ export async function runImport(opts: ImportOptions): Promise<void> {
 
   const [mirror, airlineCatalog] = await Promise.all([fetchRemoteMirror(client), fetchAirlineCatalog(client)]);
   const plan = buildWritePlan(importResult, mirror, { asNew: opts.asNew, airlineCatalog });
+  checkPlanText(plan);
 
   printPreview(plan, importerId, importResult, extraNotes);
 

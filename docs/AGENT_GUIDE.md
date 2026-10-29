@@ -108,6 +108,17 @@ an official airport send `icao` and/or `iata` and leave `code` out. Send
 update: propose a delete and a create instead, and say so. On an update `null`
 clears `icao`, `iata`, `name`, the coordinates, `country_code` or `timezone`.
 
+A proposal is checked before it is sent, and a problem names the operation and
+field. The summary is at most 500 characters, a proposal holds at most 200
+operations, and an entry at most 20 crew members. Every text value is at most
+2000 characters (10000 for a person's `notes`). No text may contain a NUL
+character or invalid text. Code fields (`flight_number`, `registration`,
+`from`, `to` of an entry, `employee_number` and `default_role` of a person,
+`code`, `icao`, `iata` of a place, aircraft and FSTD ids and type codes) may
+not contain control, bidi or zero-width characters either, so leave out a BOM
+or a zero-width space that came from a file. Shorten the text yourself rather
+than expecting it to be cut.
+
 A proposal expires after 24 hours and only the login that proposed it can
 apply it. If the data changed in the meantime, apply writes nothing and prints
 a fresh preview to confirm again.

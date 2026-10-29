@@ -463,6 +463,12 @@ describe("MCP server", () => {
       };
       const msg = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
 
+      it("refuses a hidden character in a code field before any request", async () => {
+        const r = await propose([{ op: "update", resource: "entry", id: "e1", data: { flight_number: "KL\u200B1" } }], []);
+        expect((r as { isError?: boolean }).isError).toBe(true);
+        expect(msg(r)).toContain("must not contain control, bidi or zero-width characters");
+      });
+
       it("reports crew and the auto-added pilot when the input had no people", async () => {
         const r = await propose(
           [{ op: "create", resource: "entry", data: { date: "2026-03-02" } }],
