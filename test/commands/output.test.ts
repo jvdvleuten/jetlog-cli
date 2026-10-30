@@ -58,6 +58,10 @@ describe("sanitizeForTerminal", () => {
     expect(sanitizeForTerminal("a\u001b[31mred\u0007\u202etxt.exe\u2066")).toBe("a[31mredtxt.exe");
   });
 
+  it("drops zero-width characters and the BOM", () => {
+    expect(sanitizeForTerminal("a\u200bb\u200cc\u200dd\ufeffe")).toBe("abcde");
+  });
+
   it("turns tabs and line breaks into one space", () => {
     expect(sanitizeForTerminal("one\r\ntwo\tthree")).toBe("one two three");
   });

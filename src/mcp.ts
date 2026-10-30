@@ -38,6 +38,7 @@ import { setActiveAirportIndex, useLoggedInAirports } from "./airports/index.js"
 import { uploadFile } from "./attachments/upload.js";
 import { downloadRoot, fetchAttachment, saveInsideRoot } from "./attachments/download.js";
 import { sanitizeForTerminal } from "./commands/output.js";
+import { nameProblem } from "./text-rules.js";
 import { orNotFound } from "./commands/format.js";
 import { PLACES_MAX_QUERY_BYTES, placesQueryTooLong } from "./commands/places.js";
 import { PARTNER_MIGRATION_URL } from "./commands/push.js";
@@ -991,6 +992,10 @@ export async function createMcpServer(): Promise<McpServer> {
           if (!person_id || entry_id) return textError("error: purpose person_photo needs person_id and no entry_id.");
         } else {
           return textError('error: purpose must be "entry_files" or "person_photo".');
+        }
+        for (const [field, value] of [["entry_id", entry_id], ["person_id", person_id]] as const) {
+          const problem = value === undefined ? undefined : nameProblem(value);
+          if (problem) return textError(`error: ${field} ${problem}. Nothing was sent.`);
         }
         try {
           const link = await createUploadLink(

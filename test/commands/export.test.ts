@@ -12,9 +12,11 @@ function entry(id: number, date: string) {
 
 describe("runExport", () => {
   let dir: string;
+  let progress: string[];
   const originalXdg = process.env.XDG_CONFIG_HOME;
 
   beforeEach(async () => {
+    progress = [];
     dir = await mkdtemp(join(tmpdir(), "jetlog-cli-export-"));
     process.env.XDG_CONFIG_HOME = dir;
     delete process.env.JETLOG_TOKEN;
@@ -43,9 +45,14 @@ describe("runExport", () => {
 
     try {
       const output = join(dir, "export.json");
-      await runExport({ profile: "default", output, format: "json" });
+      await runExport({ profile: "default", output, format: "json", progress: (l) => progress.push(l) });
 
       expect(server.requests.length).toBe(2);
+      expect(progress).toEqual([
+        "page 1: 2 entries (total 2)",
+        "page 2: 1 entries (total 3)",
+        `done: 3 entries written to ${output}`
+      ]);
       expect(new URL(server.requests[1]!.path, "http://x").searchParams.get("after_id")).toBe("2");
 
       const written = JSON.parse(await readFile(output, "utf-8"));
@@ -75,9 +82,10 @@ describe("runExport", () => {
       await writeFile(output, "[\n" + JSON.stringify(entry(1, "2026-01-01")) + ",\n");
       await writeFile(`${output}.resume.json`, JSON.stringify({ afterDate: "2026-01-01", afterId: "1" }));
 
-      await runExport({ profile: "default", output, format: "json" });
+      await runExport({ profile: "default", output, format: "json", progress: (l) => progress.push(l) });
 
       expect(server.requests.length).toBe(1);
+      expect(progress[0]).toBe("resuming export after date=2026-01-01 id=1");
       expect(new URL(server.requests[0]!.path, "http://x").searchParams.get("after_date")).toBe("2026-01-01");
 
       const written = JSON.parse(await readFile(output, "utf-8"));
@@ -99,7 +107,7 @@ describe("runExport", () => {
 
     try {
       const output = join(dir, "export.csv");
-      await runExport({ profile: "default", output, format: "csv" });
+      await runExport({ profile: "default", output, format: "csv", progress: (l) => progress.push(l) });
       const csv = await readFile(output, "utf-8");
       expect(csv.split("\r\n")[0]).toContain("flight_number");
       expect(csv).toContain("KL1001");

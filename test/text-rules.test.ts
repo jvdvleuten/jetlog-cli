@@ -90,8 +90,9 @@ describe("prepareWriteRows", () => {
     ]);
   });
 
-  it("does not refuse a remark the server cuts to 1000 itself, but limits notes to 10000", () => {
-    expect(prepareWriteRows("entries", [{ id: "e", remarks: "x".repeat(1500) }]).problems).toEqual([]);
+  it("refuses a remark over 1000 characters, and limits notes to 10000", () => {
+    expect(prepareWriteRows("entries", [{ id: "e", remarks: "x".repeat(1000) }]).problems).toEqual([]);
+    expect(prepareWriteRows("entries", [{ id: "e", remarks: "x".repeat(1001) }]).problems).toEqual(["entries row 1, remarks: must be at most 1000 characters"]);
     expect(prepareWriteRows("people", [{ id: "p", notes: "x".repeat(10001) }]).problems).toEqual(["people row 1, notes: must be at most 10000 characters"]);
   });
 });

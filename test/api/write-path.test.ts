@@ -6,6 +6,7 @@ import {
   createImportBatch,
   deleteImportBatch,
   listImportBatches,
+  MAX_WRITE_ROWS,
   putResourceChunked
 } from "../../src/api/client.js";
 import { TestServer, jsonHandler } from "../helpers/test-server.js";
@@ -112,7 +113,27 @@ describe("putResourceChunked", () => {
     try {
       const client = new ApiClient({ baseUrl: server.baseUrl, token: "jlp_abc" });
       await expect(putResourceChunked(client, "people", [{ id: "p1" }], "b1")).rejects.toThrow(
-        "Text is not valid\n  index 3, people[0].first_name: must be valid UTF-8 text"
+        "Text is not valid\n  people row 4, people[0].first_name: must be valid UTF-8 text"
+      );
+    } finally {
+      await server.stop();
+    }
+  });
+
+  it("names a field error of a later chunk by its row in the whole write", async () => {
+    const server = new TestServer([
+      jsonHandler(200, { entries: [] }),
+      jsonHandler(422, {
+        error: { message: "Text is not valid", code: "invalid_text", errors: [{ index: 1, field: "remarks", message: "must be valid UTF-8 text" }] }
+      })
+    ]);
+    await server.start();
+    try {
+      const client = new ApiClient({ baseUrl: server.baseUrl, token: "jlp_abc" });
+      const rows = Array.from({ length: MAX_WRITE_ROWS + 5 }, (_, i) => ({ id: `e${i}` }));
+      const label = (i: number) => `file row ${i + 10}`;
+      await expect(putResourceChunked(client, "entries", rows, "b1", label)).rejects.toThrow(
+        `Text is not valid\n  file row ${MAX_WRITE_ROWS + 1 + 10}, remarks: must be valid UTF-8 text`
       );
     } finally {
       await server.stop();

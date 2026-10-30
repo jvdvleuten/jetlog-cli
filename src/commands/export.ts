@@ -25,6 +25,8 @@ export interface ExportOptions {
   output?: string;
   format: "json" | "csv";
   includeDeleted?: boolean;
+  /** Where progress lines go (one line, no newline). Defaults to stderr; tests capture it. */
+  progress?: (line: string) => void;
 }
 
 interface ResumeState {
@@ -69,6 +71,7 @@ const CSV_COLUMNS = [
 export async function runExport(opts: ExportOptions): Promise<void> {
   const client = await requireClient(opts.profile, opts.baseUrl);
   const output = opts.output;
+  const progress = opts.progress ?? ((line: string) => void process.stderr.write(`${line}\n`));
 
   let afterDate: string | undefined;
   let afterId: string | undefined;
@@ -80,7 +83,7 @@ export async function runExport(opts: ExportOptions): Promise<void> {
       afterDate = resume.afterDate;
       afterId = resume.afterId;
       resuming = true;
-      process.stderr.write(`resuming export after date=${afterDate} id=${afterId}\n`);
+      progress(`resuming export after date=${afterDate} id=${afterId}`);
     }
   }
 
@@ -113,7 +116,7 @@ export async function runExport(opts: ExportOptions): Promise<void> {
       });
 
       total += result.entries.length;
-      process.stderr.write(`page ${page}: ${result.entries.length} entries (total ${total})\n`);
+      progress(`page ${page}: ${result.entries.length} entries (total ${total})`);
 
       if (handle) {
         for (const entry of result.entries) {
@@ -150,13 +153,13 @@ export async function runExport(opts: ExportOptions): Promise<void> {
       await writeFile(output, toCsv(entries, CSV_COLUMNS), "utf-8");
     }
     await rm(resumePath(output), { force: true });
-    process.stderr.write(`done: ${total} entries written to ${output}\n`);
+    progress(`done: ${total} entries written to ${output}`);
   } else {
     if (opts.format === "csv") {
       process.stdout.write(toCsv(entries, CSV_COLUMNS));
     } else {
       console.log(JSON.stringify(entries, null, 2));
     }
-    process.stderr.write(`done: ${total} entries\n`);
+    progress(`done: ${total} entries`);
   }
 }

@@ -453,6 +453,21 @@ describe("local MCP file tools", () => {
       expect(srv.requests).toHaveLength(0);
     });
 
+    it("refuses an id with a NUL, a lone surrogate or over 255 characters without calling the server", async () => {
+      const srv = await start([]);
+      const { client } = await connectedClient();
+      for (const [args, message] of [
+        [{ purpose: "entry_files", entry_id: "e\u0000-1" }, "entry_id must not contain the NUL character"],
+        [{ purpose: "person_photo", person_id: "p\ud800" }, "person_id must be valid UTF-8 text"],
+        [{ purpose: "entry_files", entry_id: "e".repeat(256) }, "entry_id must be at most 255 characters"]
+      ] as const) {
+        const r = await client.callTool({ name: "create_upload_link", arguments: args });
+        expect(r.isError, JSON.stringify(args)).toBe(true);
+        expect(text(r)).toContain(message);
+      }
+      expect(srv.requests).toHaveLength(0);
+    });
+
     it("never retries a 5xx, because the link may exist already", async () => {
       const srv = await start([jsonHandler(503, { error: "x" }), jsonHandler(201, link())]);
       const { client } = await connectedClient();

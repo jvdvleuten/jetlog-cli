@@ -172,23 +172,34 @@ async function reuseOrCreateBatch(
   return { batch, reused: false };
 }
 
+/** How a row of the plan is named in messages: the file row for entries, the name or id for the rest. */
+function planLabels(plan: WritePlan) {
+  const written = plan.entries.filter((e) => !e.unchanged);
+  return {
+    written,
+    people: (i: number) => `person ${plan.people[i]?.displayName ? `"${plan.people[i]!.displayName}"` : i + 1}`,
+    aircraft: (i: number) => `aircraft ${String(plan.aircraft[i]?.fields.id ?? i + 1)}`,
+    fstd: (i: number) => `fstd ${String(plan.fstd[i]?.fields.id ?? i + 1)}`,
+    entries: (i: number) => {
+      const entry = written[i];
+      if (!entry) return `entry ${i + 1}`;
+      return entry.sourceRow !== undefined ? `file row ${entry.sourceRow} (entry of ${entry.date})` : `entry ${i + 1} of ${entry.date}`;
+    }
+  };
+}
+
 /**
  * Refuses a plan with text the server would reject (NUL, invalid text, values over the length limits), naming
  * the file row and the field, before anything is sent. Rows that are not written (unchanged) are not checked.
  */
 function checkPlanText(plan: WritePlan): void {
-  const problems: string[] = [];
-  const check = (resource: string, rows: Record<string, unknown>[], label: (i: number) => string): void => {
-    problems.push(...prepareWriteRows(resource, rows, label).problems);
-  };
-  check("people", plan.people.map((p) => p.fields), (i) => `person ${plan.people[i]!.displayName ? `"${plan.people[i]!.displayName}"` : i + 1}`);
-  check("aircraft", plan.aircraft.map((a) => a.fields), (i) => `aircraft ${String(plan.aircraft[i]!.fields.id ?? i + 1)}`);
-  check("fstd", plan.fstd.map((f) => f.fields), (i) => `fstd ${String(plan.fstd[i]!.fields.id ?? i + 1)}`);
-  const written = plan.entries.filter((e) => !e.unchanged);
-  check("entries", written.map((e) => e.fields), (i) => {
-    const entry = written[i]!;
-    return entry.sourceRow !== undefined ? `file row ${entry.sourceRow} (entry of ${entry.date})` : `entry ${i + 1} of ${entry.date}`;
-  });
+  const labels = planLabels(plan);
+  const problems = [
+    ...prepareWriteRows("people", plan.people.map((p) => p.fields), labels.people).problems,
+    ...prepareWriteRows("aircraft", plan.aircraft.map((a) => a.fields), labels.aircraft).problems,
+    ...prepareWriteRows("fstd", plan.fstd.map((f) => f.fields), labels.fstd).problems,
+    ...prepareWriteRows("entries", labels.written.map((e) => e.fields), labels.entries).problems
+  ];
   if (problems.length > 0) throw problemsError("the file has text Jetlog cannot store:", problems);
 }
 
@@ -229,17 +240,18 @@ export async function runImport(opts: ImportOptions): Promise<void> {
   const { batch, reused } = await reuseOrCreateBatch(client, opts.profile, importerId, opts.label);
   if (reused) console.error(`reusing active batch ${batch.id} (previous run didn't finish or re-ran the same import)`);
 
+  const labels = planLabels(plan);
   if (plan.people.length > 0) {
-    await putResourceChunked(client, "people", plan.people.map((p) => p.fields), batch.id);
+    await putResourceChunked(client, "people", plan.people.map((p) => p.fields), batch.id, labels.people);
   }
   if (plan.aircraft.length > 0) {
-    await putResourceChunked(client, "aircraft", plan.aircraft.map((a) => a.fields), batch.id);
+    await putResourceChunked(client, "aircraft", plan.aircraft.map((a) => a.fields), batch.id, labels.aircraft);
   }
   if (plan.fstd.length > 0) {
-    await putResourceChunked(client, "fstd", plan.fstd.map((f) => f.fields), batch.id);
+    await putResourceChunked(client, "fstd", plan.fstd.map((f) => f.fields), batch.id, labels.fstd);
   }
-  const writtenEntries = plan.entries.filter((e) => !e.unchanged);
-  await putResourceChunked(client, "entries", writtenEntries.map((e) => e.fields), batch.id);
+  const writtenEntries = labels.written;
+  await putResourceChunked(client, "entries", writtenEntries.map((e) => e.fields), batch.id, labels.entries);
 
   console.error(`done: batch ${batch.id} (${importerId}): ${writtenEntries.length} entr${writtenEntries.length === 1 ? "y" : "ies"} written.`);
   console.error(`undo with \`jetlog batches remove ${batch.id}\`, or from the Jetlog app's Settings > Imports screen.`);

@@ -81,6 +81,16 @@ function printValidationErrors(result: ReturnType<typeof validatePayload>): void
   for (const e of result.modeErrors) {
     console.error(`error: entries[${e.index}]: ${e.message}`);
   }
+  for (const line of result.textErrors) console.error(`error: ${line}`);
+}
+
+/** Whether `jetlog import` would take the payload: valid, and no text it would refuse. */
+function importable(result: ReturnType<typeof validatePayload>): boolean {
+  return result.valid && result.textErrors.length === 0;
+}
+
+function printTextNotes(result: ReturnType<typeof validatePayload>): void {
+  for (const line of result.textNotes) console.error(`note: ${line}`);
 }
 
 program
@@ -116,14 +126,16 @@ program
     }
     const result = validatePayload(data, opts.mode);
     if (opts.json) {
-      console.log(JSON.stringify(result, null, 2));
-    } else if (result.valid) {
+      console.log(JSON.stringify({ ...result, valid: importable(result) }, null, 2));
+    } else if (importable(result)) {
       const entries = result.payload?.entries?.length ?? 0;
       console.log(`valid: ${entries} entr${entries === 1 ? "y" : "ies"}`);
+      printTextNotes(result);
     } else {
       printValidationErrors(result);
+      printTextNotes(result);
     }
-    if (!result.valid) process.exitCode = 1;
+    if (!importable(result)) process.exitCode = 1;
   });
 
 program
@@ -198,7 +210,8 @@ program
       else for (const row of skipped) console.error(`skipped row ${row.row}: ${row.reason}`);
 
       const result = validatePayload(payload);
-      if (!result.valid) {
+      printTextNotes(result);
+      if (!importable(result)) {
         printValidationErrors(result);
         process.exitCode = 1;
         return;
@@ -242,7 +255,8 @@ program
       const content = await readInput(file);
       const data = JSON.parse(content);
       const result = validatePayload(data);
-      if (!result.valid || !result.payload) {
+      printTextNotes(result);
+      if (!importable(result) || !result.payload) {
         printValidationErrors(result);
         process.exitCode = 1;
         return;
@@ -307,6 +321,12 @@ ai.command("convert")
 
       const parsed = payloadSchema.safeParse(payload);
       const entries = parsed.success ? parsed.data.entries ?? [] : [];
+      if (parsed.success) {
+        const text = validatePayload(payload);
+        printTextNotes(text);
+        for (const line of text.textErrors) console.error(`error: ${line}`);
+        if (text.textErrors.length > 0) process.exitCode = 1;
+      }
       const dates = entries.map((e) => e.date).sort();
       const range = dates.length > 0 ? `${dates[0]} to ${dates[dates.length - 1]}` : "n/a";
       console.error(`converted ${entries.length} entries, date range ${range}`);

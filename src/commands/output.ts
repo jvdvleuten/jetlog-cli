@@ -1,5 +1,7 @@
 /** Shared output helpers for the read commands (`entries`, `people`, `aircraft`). */
 
+import { stripHiddenCharacters } from "../text-rules.js";
+
 export type OutputFormat = "table" | "json" | "csv";
 
 export function parseOutputFormat(opts: { json?: boolean; csv?: boolean; table?: boolean }): OutputFormat {
@@ -10,14 +12,14 @@ export function parseOutputFormat(opts: { json?: boolean; csv?: boolean; table?:
 
 /**
  * Strips what a server-supplied string could use against a terminal or a reader: control characters
- * (escape sequences included), bidirectional overrides and isolates, and line or paragraph separators.
+ * (escape sequences included), bidirectional overrides and isolates, zero-width characters (including the BOM), and line or paragraph separators.
  * Tabs and line breaks become one space so a cell stays on its line. File names written by the app are
  * only length-checked on the server, so they can carry any of this.
  */
 export function sanitizeForTerminal(value: string): string {
-  return value
-    .replace(/[\t\n\r\u2028\u2029]+/g, " ")
-    .replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "");
+  // The hidden-character class of the text rules covers the C0 controls, bidi marks, zero-width characters and
+  // the BOM; this adds the C1 controls and the Arabic letter mark.
+  return stripHiddenCharacters(value.replace(/[\t\n\r\u2028\u2029]+/g, " ")).replace(/[\u007f-\u009f\u061c]/g, "");
 }
 
 /**

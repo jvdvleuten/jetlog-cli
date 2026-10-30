@@ -171,16 +171,17 @@ const MAX_LISTED_FIELD_ERRORS = 20;
 
 /**
  * The server's per-field errors (`{"error":{"errors":[{index, field, message}]}}`) as indented lines, ready to
- * append to a message. Empty when the body carries none. `index` is the position in the request that failed.
+ * append to a message. Empty when the body carries none. `index` is the position in the request that failed;
+ * `rowLabel` turns it into a name for that row (e.g. "file row 12"), for a request that is part of a larger write.
  */
-export function describeFieldErrors(body: Record<string, unknown> | undefined): string {
+export function describeFieldErrors(body: Record<string, unknown> | undefined, rowLabel?: (index: number) => string): string {
   const errors = firstArray(body, ["errors"]).filter(
     (e): e is Record<string, unknown> => !!e && typeof e === "object" && typeof (e as Record<string, unknown>).message === "string"
   );
   if (errors.length === 0) return "";
   const lines = errors.slice(0, MAX_LISTED_FIELD_ERRORS).map((e) => {
     const where = [
-      typeof e.index === "number" ? `index ${e.index}` : undefined,
+      typeof e.index === "number" ? (rowLabel ? sanitizeForTerminal(rowLabel(e.index)) : `index ${e.index}`) : undefined,
       typeof e.field === "string" && e.field !== "" ? sanitizeForTerminal(e.field) : undefined
     ].filter((p): p is string => p !== undefined);
     return `\n  ${where.length > 0 ? `${where.join(", ")}: ` : ""}${sanitizeForTerminal(e.message as string)}`;
@@ -670,28 +671,49 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 /**
+ * The server counts the `index` of a field error within the chunk it was sent. Rewrites the error's message so
+ * each line names the row by its position in the whole write (`offset` is where the chunk starts).
+ */
+function withWholeImportRows(err: ApiError, offset: number, label: (index: number) => string): ApiError {
+  const chunkLines = describeFieldErrors(err.body);
+  if (chunkLines === "" || !err.message.endsWith(chunkLines)) return err;
+  const head = err.message.slice(0, err.message.length - chunkLines.length);
+  const lines = describeFieldErrors(err.body, (i) => label(offset + i));
+  return new ApiError(head + lines, err.status, err.code, err.retryAfter, { description: err.description, body: err.body });
+}
+
+/**
  * PUTs `rows` to the given resource endpoint in chunks of at most
  * `MAX_WRITE_ROWS`, carrying the active `x-jetlog-batch-id` on every chunk.
  * Returns every chunk's merged response rows for the resource key.
+ * A field error of the server is named by the row's position in `rows`, not in the chunk.
  */
 export async function putResourceChunked(
   client: ApiClient,
   resource: "entries" | "people" | "aircraft" | "fstd" | "entry_attachments",
   rows: Record<string, unknown>[],
-  batchId: string
+  batchId: string,
+  /** Names row `index` (0-based, within `rows`) in messages. Defaults to "<resource> row <n>". */
+  label: (index: number) => string = (i) => `${resource} row ${i + 1}`
 ): Promise<Record<string, unknown>[]> {
   // Every row is checked before the first request, so a bad row sends nothing. Code fields lose hidden characters.
-  const prepared = prepareWriteRows(resource, rows);
+  const prepared = prepareWriteRows(resource, rows, label);
   if (prepared.problems.length > 0) throw problemsError("the rows cannot be stored as they are:", prepared.problems);
   const results: Record<string, unknown>[] = [];
+  let offset = 0;
   for (const batch of chunk(prepared.rows, MAX_WRITE_ROWS)) {
     if (batch.length === 0) continue;
-    const page = await client.put<WriteResourcePage>(
-      `/api/${resource}`,
-      { [resource]: batch },
-      { headers: { "x-jetlog-batch-id": batchId } }
-    );
-    results.push(...(page[resource] ?? []));
+    try {
+      const page = await client.put<WriteResourcePage>(
+        `/api/${resource}`,
+        { [resource]: batch },
+        { headers: { "x-jetlog-batch-id": batchId } }
+      );
+      results.push(...(page[resource] ?? []));
+    } catch (err) {
+      throw err instanceof ApiError ? withWholeImportRows(err, offset, label) : err;
+    }
+    offset += batch.length;
   }
   return results;
 }

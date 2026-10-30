@@ -193,3 +193,41 @@ describe("placeDataSchema", () => {
     expect(payloadSchema.safeParse({ places: [] }).success).toBe(false);
   });
 });
+
+describe("text rules of the import", () => {
+  const entry = (extra: Record<string, unknown>) => ({ entries: [{ date: "2026-01-01", ...extra }] });
+
+  it("reports NUL and over-long values the import would refuse, by row and field", () => {
+    const result = validatePayload({
+      entries: [
+        { date: "2026-01-01", flight_number: "KL1" },
+        { date: "2026-01-02", flight_number: "KL\u0000" },
+        { date: "2026-01-03", registration: "R".repeat(256) }
+      ]
+    });
+    expect(result.valid).toBe(true);
+    expect(result.textErrors).toEqual([
+      "entries[1], flight_number: must not contain the NUL character (U+0000)",
+      "entries[2], registration: must be at most 255 characters"
+    ]);
+  });
+
+  it("reports a lone surrogate and checks people too", () => {
+    const result = validatePayload({
+      people: [{ ref_id: "p1", first_name: "A\ud800", last_name: "B" }]
+    });
+    expect(result.textErrors).toEqual(["people[0], first_name: must be valid UTF-8 text"]);
+  });
+
+  it("says hidden characters in a code will be removed, without making it an error", () => {
+    const result = validatePayload(entry({ flight_number: "\uFEFFKL1", remarks: "a\u200Bb" }));
+    expect(result.textErrors).toEqual([]);
+    expect(result.textNotes).toEqual(["entries[0], flight_number: control, bidi and zero-width characters will be removed"]);
+  });
+
+  it("has nothing to report for clean text", () => {
+    const result = validatePayload(entry({ flight_number: "KL1", remarks: "fine" }));
+    expect(result.textErrors).toEqual([]);
+    expect(result.textNotes).toEqual([]);
+  });
+});

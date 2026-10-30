@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { prepareWriteRows } from "./text-rules.js";
 
 /**
  * Mirrors the Jetlog payload schema documented in JetlogAPI/README.md
@@ -207,6 +208,29 @@ export interface ValidationResult {
   payload?: Payload;
   structuralErrors: { path: string; message: string }[];
   modeErrors: RowIssue[];
+  /**
+   * `valid` covers the structure and the mode, not the text rules: callers that only need a payload keep working.
+   * The commands that vouch for a file for `jetlog import` (validate, convert, link) also check these.
+   */
+  /** Text `jetlog import` would refuse (NUL, invalid text, over-long values), one line per field: `entries[3], remarks: ...`. */
+  textErrors: string[];
+  /** Code fields that lose hidden characters on import. Not an error. */
+  textNotes: string[];
+}
+
+/** The text rules of the import (src/text-rules.ts) applied to the rows of a payload. */
+function checkPayloadText(payload: Payload): { errors: string[]; notes: string[] } {
+  const errors: string[] = [];
+  const notes: string[] = [];
+  for (const [resource, key, rows] of [
+    ["entries", "entries", payload.entries ?? []],
+    ["people", "people", payload.people ?? []]
+  ] as const) {
+    const prepared = prepareWriteRows(resource, rows as Record<string, unknown>[], (i) => `${key}[${i}]`);
+    errors.push(...prepared.problems);
+    notes.push(...prepared.removals);
+  }
+  return { errors, notes };
 }
 
 export function validatePayload(data: unknown, mode?: ImportMode): ValidationResult {
@@ -218,7 +242,9 @@ export function validatePayload(data: unknown, mode?: ImportMode): ValidationRes
         path: issue.path.join("."),
         message: issue.message
       })),
-      modeErrors: []
+      modeErrors: [],
+      textErrors: [],
+      textNotes: []
     };
   }
 
@@ -227,10 +253,13 @@ export function validatePayload(data: unknown, mode?: ImportMode): ValidationRes
     people: parsed.data.people ?? []
   };
   const modeErrors = mode ? checkModeRequirements(normalized, mode) : [];
+  const text = checkPayloadText(normalized);
   return {
     valid: modeErrors.length === 0,
     payload: normalized,
     structuralErrors: [],
-    modeErrors
+    modeErrors,
+    textErrors: text.errors,
+    textNotes: text.notes
   };
 }

@@ -14,6 +14,9 @@ export const MESSAGE_NUL = "must not contain the NUL character (U+0000)";
 export const MESSAGE_UTF8 = "must be valid UTF-8 text";
 export const MESSAGE_HIDDEN = "must not contain control, bidi or zero-width characters";
 
+/** What `jetlog import` does with hidden characters in a code field. */
+export const MESSAGE_REMOVED = "control, bidi and zero-width characters will be removed";
+
 /** The hidden-character class exactly as the server has it. */
 const HIDDEN_CHARACTERS = /[\x00-\x1F\x7F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/;
 const HIDDEN_CHARACTERS_ALL = new RegExp(HIDDEN_CHARACTERS.source, "g");
@@ -162,8 +165,9 @@ export function proposalOperationProblems(
 /** The text limits of a PUT row, per top-level field. Everything else is 255. */
 function putLimit(resource: string, field: string): number | undefined {
   if (field === "notes") return NOTES_LIMIT;
-  // The server cuts a longer remark to 1000 characters instead of refusing it, and takes the signature as is.
-  if (field === "remarks" || field === "signature") return undefined;
+  // Token routes refuse a remark over 1000 characters (422) instead of cutting it. The signature is taken as is.
+  if (field === "remarks") return REMARKS_LIMIT;
+  if (field === "signature") return undefined;
   if (field === "session_type") return SESSION_TYPE_LIMIT;
   if (field === "aircraft_icao_code" && resource === "entries") return ENTRY_AIRCRAFT_ICAO_LIMIT;
   return DEFAULT_TEXT_LIMIT;
@@ -173,6 +177,8 @@ export interface PreparedRows {
   rows: Record<string, unknown>[];
   /** One line per problem: `<label>, <field>: <message>`. Nothing may be sent when this is not empty. */
   problems: string[];
+  /** One line per code field that lost hidden characters: `<label>, <field>: <message>`. Not a problem, a heads-up. */
+  removals: string[];
 }
 
 /**
@@ -187,6 +193,7 @@ export function prepareWriteRows(
 ): PreparedRows {
   const codes = IMPORT_CODE_FIELDS[resource] ?? [];
   const problems: string[] = [];
+  const removals: string[] = [];
   const cleaned = rows.map((row, index) => {
     let out = row;
     for (const [field, value] of Object.entries(row)) {
@@ -199,6 +206,7 @@ export function prepareWriteRows(
       let text = value;
       if (codes.includes(field) && hasHiddenCharacters(text)) {
         text = stripHiddenCharacters(text);
+        removals.push(`${label(index)}, ${field}: ${MESSAGE_REMOVED}`);
         if (out === row) out = { ...row };
         out[field] = text;
       }
@@ -207,7 +215,7 @@ export function prepareWriteRows(
     }
     return out;
   });
-  return { rows: cleaned, problems };
+  return { rows: cleaned, problems, removals };
 }
 
 /** How many problem lines an error message lists before it summarises the rest. */
