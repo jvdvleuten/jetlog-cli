@@ -1,5 +1,5 @@
 {
-  "calculatorVersion" : 5,
+  "calculatorVersion" : 6,
   "cases" : [
     {
       "category" : "aircraft_classification",
@@ -3242,6 +3242,55 @@
       "expected" : {
         "derivedDate" : "2024-03-01",
         "detailedTimes" : {
+          "fstdNonTrainingTime" : 240
+        },
+        "easaTimesSigned" : {
+
+        },
+        "easaTimesUnsigned" : {
+
+        },
+        "inPeriod" : null,
+        "resolved" : {
+          "from" : null,
+          "to" : null
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+
+        ],
+        "entry" : {
+          "date" : "2024-03-01",
+          "endTime" : "13:00",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "992CBA63-E047-4AE3-84BC-196BDC1A3F06",
+              "role" : "fstdAcceptancePilot"
+            }
+          ],
+          "startTime" : "9:00",
+          "type" : "fstd",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "selfRole" : "fstdAcceptancePilot",
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "fstd_fstdAcceptancePilot"
+    },
+    {
+      "category" : "fstd",
+      "expected" : {
+        "derivedDate" : "2024-03-01",
+        "detailedTimes" : {
           "fstdExaminerTime" : 240
         },
         "easaTimesSigned" : {
@@ -3285,6 +3334,55 @@
         ]
       },
       "name" : "fstd_fstdExaminer"
+    },
+    {
+      "category" : "fstd",
+      "expected" : {
+        "derivedDate" : "2024-03-01",
+        "detailedTimes" : {
+          "fstdNonTrainingTime" : 240
+        },
+        "easaTimesSigned" : {
+
+        },
+        "easaTimesUnsigned" : {
+
+        },
+        "inPeriod" : null,
+        "resolved" : {
+          "from" : null,
+          "to" : null
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+
+        ],
+        "entry" : {
+          "date" : "2024-03-01",
+          "endTime" : "13:00",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "992CBA63-E047-4AE3-84BC-196BDC1A3F06",
+              "role" : "fstdFlightInspector"
+            }
+          ],
+          "startTime" : "9:00",
+          "type" : "fstd",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "selfRole" : "fstdFlightInspector",
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "fstd_fstdFlightInspector"
     },
     {
       "category" : "fstd",
@@ -3432,6 +3530,104 @@
         ]
       },
       "name" : "fstd_fstdSeniorInstructor"
+    },
+    {
+      "category" : "fstd",
+      "expected" : {
+        "derivedDate" : "2024-03-01",
+        "detailedTimes" : {
+          "fstdNonTrainingTime" : 240
+        },
+        "easaTimesSigned" : {
+
+        },
+        "easaTimesUnsigned" : {
+
+        },
+        "inPeriod" : null,
+        "resolved" : {
+          "from" : null,
+          "to" : null
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+
+        ],
+        "entry" : {
+          "date" : "2024-03-01",
+          "endTime" : "13:00",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "992CBA63-E047-4AE3-84BC-196BDC1A3F06",
+              "role" : "fstdStandIn"
+            }
+          ],
+          "startTime" : "9:00",
+          "type" : "fstd",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "selfRole" : "fstdStandIn",
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "fstd_fstdStandIn"
+    },
+    {
+      "category" : "fstd",
+      "expected" : {
+        "derivedDate" : "2024-03-01",
+        "detailedTimes" : {
+          "fstdNonTrainingTime" : 240
+        },
+        "easaTimesSigned" : {
+
+        },
+        "easaTimesUnsigned" : {
+
+        },
+        "inPeriod" : null,
+        "resolved" : {
+          "from" : null,
+          "to" : null
+        }
+      },
+      "input" : {
+        "activeCrewCount" : 0,
+        "catalog" : [
+
+        ],
+        "entry" : {
+          "date" : "2024-03-01",
+          "endTime" : "13:00",
+          "ifr" : true,
+          "isBulk" : false,
+          "isImportedFromOtherLogbook" : false,
+          "people" : [
+            {
+              "isDeleted" : false,
+              "personId" : "992CBA63-E047-4AE3-84BC-196BDC1A3F06",
+              "role" : "fstdTechnicalPilot"
+            }
+          ],
+          "startTime" : "9:00",
+          "type" : "fstd",
+          "updateFlightData" : false
+        },
+        "period" : null,
+        "selfRole" : "fstdTechnicalPilot",
+        "userPlaces" : [
+
+        ]
+      },
+      "name" : "fstd_fstdTechnicalPilot"
     },
     {
       "category" : "fstd",

@@ -73,7 +73,11 @@ export const WIRE_ROLE_TO_CALC_ROLE: Record<string, EntryPersonRoleName> = {
   FSTD_INS: "fstdInstructor",
   FSTD_EXA: "fstdExaminer",
   FSTD_OBS: "fstdObserver",
-  FSTD_SI: "fstdSeniorInstructor"
+  FSTD_SI: "fstdSeniorInstructor",
+  FSTD_ACC: "fstdAcceptancePilot",
+  FSTD_TECH: "fstdTechnicalPilot",
+  FSTD_STANDIN: "fstdStandIn",
+  FSTD_INSP: "fstdFlightInspector"
 };
 
 /**
@@ -161,7 +165,16 @@ const IMPORTED_ROLE_MAP: Record<string, EntryPersonRoleName> = {
   FSTD_INS: "fstdInstructor",
   FSTD_EXA: "fstdExaminer",
   FSTD_OBS: "fstdObserver",
-  FSTD_SI: "fstdSeniorInstructor"
+  FSTD_SI: "fstdSeniorInstructor",
+  FSTD_ACC: "fstdAcceptancePilot",
+  ACCEPTANCE_PILOT: "fstdAcceptancePilot",
+  FSTD_TECH: "fstdTechnicalPilot",
+  TECHNICAL_PILOT: "fstdTechnicalPilot",
+  FSTD_STANDIN: "fstdStandIn",
+  STAND_IN: "fstdStandIn",
+  STANDIN: "fstdStandIn",
+  FSTD_INSP: "fstdFlightInspector",
+  FSTD_INSPECTOR: "fstdFlightInspector"
 };
 
 /**
@@ -217,7 +230,11 @@ const ROLE_SORT_ORDER: readonly EntryPersonRoleName[] = [
   "fstdInstructor",
   "fstdExaminer",
   "fstdObserver",
-  "fstdSeniorInstructor"
+  "fstdSeniorInstructor",
+  "fstdAcceptancePilot",
+  "fstdTechnicalPilot",
+  "fstdStandIn",
+  "fstdFlightInspector"
 ];
 
 /** Sort key `[rank, rawString]` for a role, `rawString` only breaking ties between unknown roles. */

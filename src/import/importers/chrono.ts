@@ -158,7 +158,11 @@ const KNOWN_ROLES = new Set<string>([
   "FSTD_INS",
   "FSTD_EXA",
   "FSTD_OBS",
-  "FSTD_SI"
+  "FSTD_SI",
+  "FSTD_ACC",
+  "FSTD_TECH",
+  "FSTD_STANDIN",
+  "FSTD_INSP"
 ]);
 
 function roleFromRawString(raw: string): EntryPersonRole {

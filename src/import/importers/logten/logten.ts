@@ -103,7 +103,11 @@ const PROTECTED_NON_PILOT_ROLES: EntryPersonRole[] = [
   "FSTD_INS",
   "FSTD_EXA",
   "FSTD_OBS",
-  "FSTD_SI"
+  "FSTD_SI",
+  "FSTD_ACC",
+  "FSTD_TECH",
+  "FSTD_STANDIN",
+  "FSTD_INSP"
 ];
 
 function isProtectedNonPilotRole(role: EntryPersonRole): boolean {

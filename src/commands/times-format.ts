@@ -126,7 +126,7 @@ export function formatEntryTimesTable(entries: EntryTimesForTotals[]): string {
     ifr: cell(e.detailedTimes.ifr),
     pic: cell(e.easaTimesSigned.pilotInCommand),
     "co-pilot": cell(e.easaTimesSigned.coPilot),
-    sim: cell(e.detailedTimes.fstdSession ?? e.detailedTimes.fstdInstructorTime ?? e.detailedTimes.fstdExaminerTime ?? e.detailedTimes.fstdSeniorInstructorTime)
+    sim: cell(e.detailedTimes.fstdSession ?? e.detailedTimes.fstdInstructorTime ?? e.detailedTimes.fstdExaminerTime ?? e.detailedTimes.fstdSeniorInstructorTime ?? e.detailedTimes.fstdNonTrainingTime)
   }));
   return toTable(rows, ["#", "date", "route", "role", "block", "air", "night", "ifr", "pic", "co-pilot", "sim"]);
 }

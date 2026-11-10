@@ -114,7 +114,12 @@ describe("mapImportedRoleCode: aliases the iOS app accepts for raw role strings"
     ["SAFETY_PILOT", "safetyPilot"],
     ["SAFETYPILOT", "safetyPilot"],
     ["safety pilot", "safetyPilot"],
-    ["TRAINEE", "fstdTrainee"]
+    ["TRAINEE", "fstdTrainee"],
+    ["ACCEPTANCE_PILOT", "fstdAcceptancePilot"],
+    ["TECHNICAL_PILOT", "fstdTechnicalPilot"],
+    ["STAND_IN", "fstdStandIn"],
+    ["STANDIN", "fstdStandIn"],
+    ["FSTD_INSPECTOR", "fstdFlightInspector"]
   ];
 
   for (const [input, expected] of cases) {

@@ -36,6 +36,10 @@ export type EntryPersonRoleName =
   | "fstdExaminer"
   | "fstdObserver"
   | "fstdSeniorInstructor"
+  | "fstdAcceptancePilot"
+  | "fstdTechnicalPilot"
+  | "fstdStandIn"
+  | "fstdFlightInspector"
   | "unknown";
 
 export const COPILOT_SEAT_FAMILY: ReadonlySet<EntryPersonRoleName> = new Set([
@@ -144,6 +148,8 @@ export interface DetailedTimes {
   fstdInstructorTime?: number;
   fstdExaminerTime?: number;
   fstdSeniorInstructorTime?: number;
+  /** Session time of the non-logging FSTD roles (acceptance, technical, stand-in, inspector); tracked, never EASA time (iOS `fstdNonTrainingTime`, JSON `fstd_non_training`). */
+  fstdNonTrainingTime?: number;
 }
 
 export interface EASATimes {

@@ -78,6 +78,10 @@ export function attribute(detailed: DetailedTimes, block: number | undefined, ro
     case "fstdExaminer":
     case "fstdObserver":
     case "fstdSeniorInstructor":
+    case "fstdAcceptancePilot":
+    case "fstdTechnicalPilot":
+    case "fstdStandIn":
+    case "fstdFlightInspector":
       // FSTD roles log no flight time on a flight entry.
       break;
     case "cabinAttendant":

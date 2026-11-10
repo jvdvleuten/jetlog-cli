@@ -190,6 +190,12 @@ function calculateFSTDTimes(entry: CalcEntry, ctx: CalcContext): CalculatedTimes
       break;
     case "fstdObserver":
       break;
+    case "fstdAcceptancePilot":
+    case "fstdTechnicalPilot":
+    case "fstdStandIn":
+    case "fstdFlightInspector":
+      detailed.fstdNonTrainingTime = sessionTime;
+      break;
     default:
       detailed.fstdSession = sessionTime;
       break;
@@ -243,6 +249,13 @@ function fromBulkTimes(times: CalcTimes, role: EntryPersonRoleName): DetailedTim
       break;
     case "fstdSeniorInstructor":
       detailed.fstdSeniorInstructorTime = times.fstdSession;
+      break;
+    case "fstdAcceptancePilot":
+    case "fstdTechnicalPilot":
+    case "fstdStandIn":
+    case "fstdFlightInspector":
+      detailed.fstdNonTrainingTime = times.fstdSession;
+      delete detailed.fstdSession;
       break;
     default:
       break;

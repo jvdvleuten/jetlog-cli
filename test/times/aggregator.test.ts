@@ -127,6 +127,17 @@ describe("aggregateTotals", () => {
       expect(totals.totalFSTDInstructedSessions).toBe(0);
     });
 
+    it("counts the four non-logging FSTD roles as neither", () => {
+      const totals = aggregateTotals(
+        (["fstdAcceptancePilot", "fstdTechnicalPilot", "fstdStandIn", "fstdFlightInspector"] as const).map((selfRole) =>
+          fstdEntry({}, { selfRole })
+        )
+      );
+      expect(totals.totalFSTDTraineeSessions).toBe(0);
+      expect(totals.totalFSTDInstructedSessions).toBe(0);
+      expect(totals.totalFstdSessionMinutes).toBe(0);
+    });
+
     it("defaults to trainee for nil/non-FSTD roles (deliberate default branch)", () => {
       const totals = aggregateTotals([fstdEntry({}, { selfRole: "pilotInCommand" }), fstdEntry({})]);
       expect(totals.totalFSTDTraineeSessions).toBe(2);

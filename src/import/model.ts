@@ -151,6 +151,10 @@ export type EntryPersonRole =
   | "FSTD_EXA" // fstdExaminer
   | "FSTD_OBS" // fstdObserver
   | "FSTD_SI" // fstdSeniorInstructor
+  | "FSTD_ACC" // fstdAcceptancePilot
+  | "FSTD_TECH" // fstdTechnicalPilot
+  | "FSTD_STANDIN" // fstdStandIn
+  | "FSTD_INSP" // fstdFlightInspector
   | { unknown: string };
 
 export function entryPersonRoleRawValue(r: EntryPersonRole): string {

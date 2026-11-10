@@ -201,8 +201,14 @@ export function aggregateTotals(entries: EntryTimesForTotals[], opts: AggregateT
         totals.totalFSTDTraineeSessions += 1;
       } else if (selfRole !== undefined && FSTD_INSTRUCTED_ROLES.has(selfRole)) {
         totals.totalFSTDInstructedSessions += 1;
-      } else if (selfRole === "fstdObserver") {
-        // neither bucket
+      } else if (
+        selfRole === "fstdObserver" ||
+        selfRole === "fstdAcceptancePilot" ||
+        selfRole === "fstdTechnicalPilot" ||
+        selfRole === "fstdStandIn" ||
+        selfRole === "fstdFlightInspector"
+      ) {
+        // neither bucket (tracked non-training time lives in detailedTimes.fstdNonTrainingTime)
       } else {
         // Default branch, deliberate (nil/non-FSTD role), matches the iOS source exactly.
         totals.totalFSTDTraineeSessions += 1;
