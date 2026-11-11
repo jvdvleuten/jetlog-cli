@@ -3,16 +3,25 @@
 Copies the flight signatures out of CL PILOTLOG (mccPILOTLOG) on your Mac and
 attaches them to the matching entries in your Jetlog logbook.
 
-PILOTLOG's CSV export has no signatures. The iPhone and iPad app also runs on
-Apple silicon Macs, and there it keeps its data in a readable folder, signature
-images included. This script reads that folder and never changes it.
+PILOTLOG's CSV export has no signatures. On a Mac, PILOTLOG keeps its data in
+a readable folder, signature images included. This script reads that folder
+and never changes it. It knows both kinds of install:
+
+- the App Store app on an Apple silicon Mac, data in
+  `~/Library/Containers/aero.crewlounge.pilotlogclaero/Data/Documents`
+  (`mccPilotLog.sqlite` and `images/`)
+- the Mac app from Crew Lounge's own installer, also on Intel Macs, data in
+  `/Applications/PILOTLOG.app/Contents/Resources/userdata` (`pilotlog.db` and
+  `gallery/endorsements/`)
+
+Without `--data` it looks in the App Store folder first, then in the installer
+folder, and says which database it reads.
 
 ## What you need
 
-- An Apple silicon Mac with CL PILOTLOG installed from the App Store, opened
-  once so it has synced your logbook.
+- A Mac with CL PILOTLOG, opened once so it has synced your logbook.
 - Node 20 or newer. The script has no dependencies and uses the `sqlite3` tool
-  that ships with macOS.
+  that ships with macOS (old versions such as the one on Catalina work too).
 - For the attach step: `npm i -g jetlog-cli` (a version that has
   `jetlog signatures attach-many`) and a login with write access
   (`jetlog login --scope write`). In the app, "Make changes to your logbook"
@@ -99,8 +108,9 @@ Anything left over can be attached by hand with
   apps. Answer Allow. If you denied it before, give the terminal Full Disk
   Access under System Settings > Privacy & Security.
 - The PILOTLOG folder is only read. Nothing there is written, moved or deleted.
-- Written against PILOTLOG 5.4.69. The data layout is not a public format and
-  can change with an update.
+- Written against PILOTLOG 5.4.69 (App Store) and the installer version
+  202600004. The data layout is not a public format and can change with an
+  update.
 - Matching of simulator sessions was tested with made-up data only. Look at
   those lines in the dry run before you attach.
 - Not affiliated with Crew Lounge. The faint flight date behind the signature
